@@ -20,6 +20,7 @@ import {
   Percent
 } from "lucide-react";
 import { SystemConfig, Heartbeat } from "../types";
+import { InfoTooltip } from "./InfoTooltip";
 
 interface SystemConfigTabProps {
   config: SystemConfig | null;
@@ -207,7 +208,10 @@ WantedBy=multi-user.target`;
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Starting Capital (₹)</label>
+                <label className="block text-slate-400 font-medium mb-1 flex items-center">
+                  Starting Capital (₹)
+                  <InfoTooltip title="Starting Capital" text="Virtual portfolio money allocated when starting or resetting paper trading." />
+                </label>
                 <input
                   type="number"
                   step={5000}
@@ -218,7 +222,10 @@ WantedBy=multi-user.target`;
               </div>
 
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Max Amount per Order (₹)</label>
+                <label className="block text-slate-400 font-medium mb-1 flex items-center">
+                  Max Amount per Order (₹)
+                  <InfoTooltip title="Max Order Amount" text="Upper limit on money spent per individual stock purchase to control single-trade risk." />
+                </label>
                 <input
                   type="number"
                   step={1000}
@@ -231,7 +238,10 @@ WantedBy=multi-user.target`;
 
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Max Position %</label>
+                <label className="block text-slate-400 font-medium mb-1 flex items-center">
+                  Max Position %
+                  <InfoTooltip title="Max Position %" text="Maximum percentage of total account equity allowed to be held in a single stock." />
+                </label>
                 <div className="relative">
                   <input
                     type="number"
@@ -245,7 +255,10 @@ WantedBy=multi-user.target`;
               </div>
 
               <div>
-                <label className="block text-slate-400 font-medium mb-1 text-rose-400">Stop Loss %</label>
+                <label className="block text-slate-400 font-medium mb-1 text-rose-400 flex items-center">
+                  Stop Loss %
+                  <InfoTooltip title="Stop Loss %" text="Automatic risk guard. Automatically sells a stock if its price falls by this percentage from purchase price." />
+                </label>
                 <div className="relative">
                   <input
                     type="number"
@@ -259,7 +272,10 @@ WantedBy=multi-user.target`;
               </div>
 
               <div>
-                <label className="block text-slate-400 font-medium mb-1 text-emerald-400">Take Profit %</label>
+                <label className="block text-slate-400 font-medium mb-1 text-emerald-400 flex items-center">
+                  Take Profit %
+                  <InfoTooltip title="Take Profit %" text="Profit target. Automatically sells a stock once it gains this percentage, locking in profits." />
+                </label>
                 <div className="relative">
                   <input
                     type="number"

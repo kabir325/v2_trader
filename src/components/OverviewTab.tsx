@@ -21,6 +21,7 @@ import {
   Activity
 } from "lucide-react";
 import { PortfolioStats, EquityPoint, WatchlistItem, StockPoint } from "../types";
+import { InfoTooltip } from "./InfoTooltip";
 
 interface OverviewTabProps {
   stats: PortfolioStats | null;
@@ -62,7 +63,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         {/* Total Portfolio Value */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>TOTAL PORTFOLIO VALUE</span>
+            <span className="flex items-center">
+              TOTAL PORTFOLIO VALUE
+              <InfoTooltip
+                title="Total Portfolio Value"
+                text="The total current net worth of your account. It equals your uninvested Cash Balance plus the current live market value of all your active stock holdings."
+              />
+            </span>
             <Wallet className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="mt-3 flex items-baseline justify-between">
@@ -88,7 +95,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         {/* Total P&L */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>TOTAL P&L (UNREALIZED + REALIZED)</span>
+            <span className="flex items-center">
+              TOTAL P&L (NET PROFIT / LOSS)
+              <InfoTooltip
+                title="Total Profit & Loss"
+                text="Total net money made or lost since starting trading. It is the sum of profits locked in from closed trades (Realized) and live paper profit/loss on active positions (Unrealized)."
+              />
+            </span>
             <TrendingUp className="w-4 h-4 text-teal-400" />
           </div>
           <div className="mt-3 flex items-baseline justify-between">
@@ -104,22 +117,40 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             </span>
           </div>
           <div className="mt-2 flex justify-between text-xs text-slate-500">
-            <span>Unrealized: ₹{stats?.unrealizedPnl || 0}</span>
-            <span>Realized: ₹{stats?.realizedPnl || 0}</span>
+            <span className="flex items-center">
+              Unrealized: ₹{stats?.unrealizedPnl || 0}
+              <InfoTooltip
+                title="Unrealized P&L"
+                text="Live 'paper' profit/loss on open stock holdings. It fluctuates with market prices and becomes Realized only when you sell."
+              />
+            </span>
+            <span className="flex items-center">
+              Realized: ₹{stats?.realizedPnl || 0}
+              <InfoTooltip
+                title="Realized P&L"
+                text="Actual net profit or loss permanently locked in after closing/selling stock positions."
+              />
+            </span>
           </div>
         </div>
 
         {/* Cash vs Invested */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>CASH & INVESTED CAPITAL</span>
+            <span className="flex items-center">
+              CASH & INVESTED CAPITAL
+              <InfoTooltip
+                title="Cash & Invested Breakdown"
+                text="Cash is available uninvested money ready to buy new stocks. Invested is the capital currently locked in active stock purchases."
+              />
+            </span>
             <Layers className="w-4 h-4 text-indigo-400" />
           </div>
           <div className="mt-3 flex items-baseline justify-between">
             <span className="text-2xl font-bold text-white tracking-tight">
               ₹{stats?.cashBalance.toLocaleString("en-IN") || "74,820"}
             </span>
-            <span className="text-xs text-indigo-400 font-medium">
+            <span className="text-xs text-indigo-400 font-medium flex items-center">
               Invested: ₹{stats?.investedValue.toLocaleString("en-IN") || "24,000"}
             </span>
           </div>
@@ -139,7 +170,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         {/* Closed Trades / Win Rate */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>TRADING EXECUTION PERFORMANCE</span>
+            <span className="flex items-center">
+              TRADING EXECUTION PERFORMANCE
+              <InfoTooltip
+                title="Trading Performance"
+                text="Tracks total executed orders and Win Rate (% of trades that generated a positive profit vs loss)."
+              />
+            </span>
             <Percent className="w-4 h-4 text-amber-400" />
           </div>
           <div className="mt-3 flex items-baseline justify-between">

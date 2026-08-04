@@ -1,6 +1,7 @@
 import React from "react";
 import { Position, Trade } from "../types";
 import { ArrowUpRight, ArrowDownRight, CheckCircle2, Clock, XCircle, FileSpreadsheet } from "lucide-react";
+import { InfoTooltip } from "./InfoTooltip";
 
 interface PositionsTabProps {
   positions: Position[];
@@ -42,10 +43,30 @@ export const PositionsTab: React.FC<PositionsTabProps> = ({
                   <th className="py-3 px-4">Symbol</th>
                   <th className="py-3 px-4">Side</th>
                   <th className="py-3 px-4 text-right">Qty</th>
-                  <th className="py-3 px-4 text-right">Avg Entry Price</th>
-                  <th className="py-3 px-4 text-right">Current Price (LTP)</th>
-                  <th className="py-3 px-4 text-right">Position Value</th>
-                  <th className="py-3 px-4 text-right rounded-r-lg">Unrealized P&L</th>
+                  <th className="py-3 px-4 text-right">
+                    <span className="inline-flex items-center justify-end">
+                      Avg Entry Price
+                      <InfoTooltip title="Avg Entry Price" text="The average cost per share at which you bought this stock." />
+                    </span>
+                  </th>
+                  <th className="py-3 px-4 text-right">
+                    <span className="inline-flex items-center justify-end">
+                      LTP (Current)
+                      <InfoTooltip title="Last Traded Price (LTP)" text="The latest live price per share on the National Stock Exchange (NSE)." />
+                    </span>
+                  </th>
+                  <th className="py-3 px-4 text-right">
+                    <span className="inline-flex items-center justify-end">
+                      Position Value
+                      <InfoTooltip title="Position Value" text="Total current market value of your shares (Quantity × LTP)." />
+                    </span>
+                  </th>
+                  <th className="py-3 px-4 text-right rounded-r-lg">
+                    <span className="inline-flex items-center justify-end">
+                      Unrealized P&L
+                      <InfoTooltip title="Unrealized P&L" text="Live paper profit or loss if you were to sell all shares right now." />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-slate-200">
@@ -126,8 +147,18 @@ export const PositionsTab: React.FC<PositionsTabProps> = ({
                   <th className="py-3 px-4 text-right">Qty</th>
                   <th className="py-3 px-4 text-right">Execution Price</th>
                   <th className="py-3 px-4 text-right">Total Trade Value</th>
-                  <th className="py-3 px-4 text-right">Realized P&L</th>
-                  <th className="py-3 px-4 rounded-r-lg">Strategy Reason</th>
+                  <th className="py-3 px-4 text-right">
+                    <span className="inline-flex items-center justify-end">
+                      Realized P&L
+                      <InfoTooltip title="Realized P&L" text="The actual net profit or loss permanently booked after selling this stock." />
+                    </span>
+                  </th>
+                  <th className="py-3 px-4 rounded-r-lg">
+                    <span className="inline-flex items-center">
+                      Strategy Reason
+                      <InfoTooltip title="Exit Strategy Reason" text="Why the bot executed this sell order (e.g. Stop Loss hit, Take Profit target reached, or ML signal)." />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-slate-200">

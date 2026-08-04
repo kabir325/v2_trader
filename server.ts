@@ -1,0 +1,315 @@
+import express from "express";
+import path from "path";
+import { createServer as createViteServer } from "vite";
+import {
+  config,
+  currentWeek,
+  watchlist,
+  positions,
+  closedTrades,
+  signals,
+  modelRuns,
+  systemEvents,
+  heartbeats,
+  equityCurve,
+  logFilesContent,
+  getPortfolioStats,
+  getStockHistory,
+  runSimulationCycle,
+  retrainModel,
+  resetPortfolio
+} from "./src/server/traderStore.js";
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json());
+
+  // ==================== API ROUTES ====================
+
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", app: "My Money Maker - Algorithmic Trader" });
+  });
+
+  // Portfolio Overview
+  app.get("/api/portfolio", (_req, res) => {
+    const stats = getPortfolioStats();
+    res.json({
+      stats,
+      positions,
+      closedTrades,
+      equityCurve,
+    });
+  });
+
+  // Run Simulation Cycle
+  app.post("/api/trader/cycle", (_req, res) => {
+    const stats = runSimulationCycle();
+    res.json({
+      success: true,
+      stats,
+      latestSignal: signals[0],
+      latestHeartbeat: heartbeats[0],
+    });
+  });
+
+  // Trigger Model Retraining
+  app.post("/api/trader/train-model", (_req, res) => {
+    const newRun = retrainModel();
+    res.json({
+      success: true,
+      run: newRun,
+      message: "ML Model retrained successfully",
+    });
+  });
+
+  // Reset Portfolio (Supports hard reset & custom starting capital)
+  app.post("/api/trader/reset", (req, res) => {
+    const customCapital = req.body.capital ? Number(req.body.capital) : undefined;
+    const hardReset = req.body.hardReset === true;
+    const stats = resetPortfolio(customCapital, hardReset);
+    res.json({
+      success: true,
+      stats,
+      message: hardReset ? "Hard reset complete. All trading history wiped." : "Portfolio reset to initial capital",
+    });
+  });
+
+  // Watchlist Endpoints
+  app.get("/api/watchlist", (_req, res) => {
+    res.json(watchlist);
+  });
+
+  app.post("/api/watchlist", (req, res) => {
+    const { symbol, category, priority, tags, notes } = req.body;
+    if (!symbol) {
+      return res.status(400).json({ error: "Symbol is required" });
+    }
+    const cleanSym = symbol.trim().toUpperCase();
+    const existing = watchlist.find((w) => w.symbol === cleanSym);
+    if (existing) {
+      return res.status(400).json({ error: "Stock already in watchlist" });
+    }
+
+    const newItem = {
+      symbol: cleanSym,
+      category: category || "General",
+      priority: Number(priority) || 5,
+      enabled: true,
+      tags: tags || "custom",
+      notes: notes || "",
+      exchange: "NSE",
+      ltp: 1000 + Math.round(Math.random() * 2000),
+      open: 1000,
+      high: 1050,
+      low: 990,
+      close: 1000,
+      change: 0,
+      changePct: 0,
+      volume: 500000,
+    };
+    watchlist.push(newItem);
+    res.json({ success: true, item: newItem });
+  });
+
+  app.patch("/api/watchlist/:symbol", (req, res) => {
+    const cleanSym = req.params.symbol.toUpperCase();
+    const item = watchlist.find((w) => w.symbol === cleanSym);
+    if (!item) {
+      return res.status(404).json({ error: "Stock not found" });
+    }
+    if (req.body.enabled !== undefined) item.enabled = Boolean(req.body.enabled);
+    if (req.body.priority !== undefined) item.priority = Number(req.body.priority);
+    if (req.body.category !== undefined) item.category = String(req.body.category);
+    if (req.body.notes !== undefined) item.notes = String(req.body.notes);
+
+    res.json({ success: true, item });
+  });
+
+  app.delete("/api/watchlist/:symbol", (req, res) => {
+    const cleanSym = req.params.symbol.toUpperCase();
+    const idx = watchlist.findIndex((w) => w.symbol === cleanSym);
+    if (idx === -1) {
+      return res.status(404).json({ error: "Stock not found" });
+    }
+    watchlist.splice(idx, 1);
+    res.json({ success: true, message: `Removed ${cleanSym} from watchlist` });
+  });
+
+  // Trading Signals
+  app.get("/api/signals", (_req, res) => {
+    res.json(signals);
+  });
+
+  // ML Status
+  app.get("/api/ml/status", (_req, res) => {
+    const totalSamples = modelRuns.reduce((sum, r) => sum + r.samples, 1850);
+    res.json({
+      currentWeek,
+      paperTrainingWeeks: config.trading.paper_training_weeks,
+      minSamples: config.trading.min_training_samples,
+      totalSamples,
+      isLivePhase: currentWeek > config.trading.paper_training_weeks,
+      latestRun: modelRuns[0] || null,
+      runs: modelRuns,
+    });
+  });
+
+  // System Logs & DB Events
+  app.get("/api/logs", (req, res) => {
+    const file = (req.query.file as string) || "trading.log";
+    const content = logFilesContent[file] || logFilesContent["trading.log"] || [];
+    res.json({
+      file,
+      availableFiles: Object.keys(logFilesContent),
+      lines: content,
+      systemEvents,
+    });
+  });
+
+  // Configuration
+  app.get("/api/config", (_req, res) => {
+    res.json({
+      config,
+      currentWeek,
+      activeSymbolsCount: watchlist.filter((w) => w.enabled).length,
+      totalWatchlistCount: watchlist.length,
+      heartbeats,
+    });
+  });
+
+  app.post("/api/config", (req, res) => {
+    if (req.body.mode && (req.body.mode === "PAPER" || req.body.mode === "LIVE")) {
+      config.trading.mode = req.body.mode;
+    }
+    if (req.body.initial_capital) {
+      config.trading.initial_capital = Number(req.body.initial_capital);
+    }
+    if (req.body.max_position_pct) {
+      config.trading.max_position_pct = Number(req.body.max_position_pct);
+    }
+    if (req.body.max_trade_amount) {
+      config.trading.max_trade_amount = Number(req.body.max_trade_amount);
+    }
+    if (req.body.stop_loss_pct) {
+      config.trading.stop_loss_pct = Number(req.body.stop_loss_pct);
+    }
+    if (req.body.take_profit_pct) {
+      config.trading.take_profit_pct = Number(req.body.take_profit_pct);
+    }
+    if (req.body.max_concurrent_positions) {
+      config.trading.max_concurrent_positions = Number(req.body.max_concurrent_positions);
+    }
+    if (req.body.poll_interval_seconds) {
+      config.trading.poll_interval_seconds = Number(req.body.poll_interval_seconds);
+    }
+    if (req.body.paper_training_weeks) {
+      config.trading.paper_training_weeks = Number(req.body.paper_training_weeks);
+    }
+
+    // Groww API Credentials
+    if (req.body.groww_api_token !== undefined) {
+      config.credentials.groww_api_token = req.body.groww_api_token;
+    }
+    if (req.body.groww_api_secret !== undefined) {
+      config.credentials.groww_api_secret = req.body.groww_api_secret;
+    }
+    if (req.body.groww_totp_key !== undefined) {
+      config.credentials.groww_totp_key = req.body.groww_totp_key;
+    }
+
+    systemEvents.unshift({
+      id: `evt-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      level: "INFO",
+      component: "config",
+      message: `Configuration updated: mode=${config.trading.mode}, capital=₹${config.trading.initial_capital}, max_trade=₹${config.trading.max_trade_amount}`,
+    });
+
+    res.json({ success: true, config });
+  });
+
+  // Download Raspberry Pi systemd service file
+  app.get("/api/systemd/download", (_req, res) => {
+    const serviceContent = `[Unit]
+Description=Groww Algorithmic Trader & ML Daemon (My Money Maker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/groww-trader
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5s
+WatchdogSec=60s
+KillMode=process
+StandardOutput=journal
+StandardError=journal
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=DATABASE_MODE=WAL
+EnvironmentFile=/home/pi/groww-trader/.env
+
+[Install]
+WantedBy=multi-user.target
+`;
+    res.setHeader("Content-Type", "text/plain");
+    res.setHeader("Content-Disposition", 'attachment; filename="groww-trader.service"');
+    res.send(serviceContent);
+  });
+
+  // Stock History Chart Data
+  app.get("/api/stocks/:symbol/history", (req, res) => {
+    const symbol = req.params.symbol.toUpperCase();
+    const history = getStockHistory(symbol);
+    res.json(history);
+  });
+
+  // Download Reports (CSV)
+  app.get("/api/reports/download", (req, res) => {
+    const type = (req.query.type as string) || "trades";
+    let csv = "";
+    if (type === "trades") {
+      csv = "id,timestamp,symbol,side,qty,price,total,mode,pnl,pnlPct,reason\n";
+      closedTrades.forEach((t) => {
+        csv += `${t.id},${t.timestamp},${t.symbol},${t.side},${t.qty},${t.price},${t.total},${t.mode},${t.pnl || 0},${t.pnlPct || 0},"${t.reason}"\n`;
+      });
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=closed_trades_report.csv");
+      return res.send(csv);
+    } else {
+      csv = "id,symbol,qty,avgPrice,currentPrice,pnl,pnlPct,mode,entryTime\n";
+      positions.forEach((p) => {
+        csv += `${p.id},${p.symbol},${p.qty},${p.avgPrice},${p.currentPrice},${p.pnl},${p.pnlPct},${p.mode},${p.entryTime}\n`;
+      });
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=active_positions_report.csv");
+      return res.send(csv);
+    }
+  });
+
+  // ==================== VITE MIDDLEWARE ====================
+
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[My Money Maker] Server running on http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer();

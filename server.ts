@@ -18,7 +18,11 @@ import {
   runSimulationCycle,
   retrainModel,
   resetPortfolio,
-  trainHistoricalModel
+  trainHistoricalModel,
+  getPaperBotState,
+  updatePaperBotConfig,
+  resetPaperBot,
+  stepPaperBot
 } from "./src/server/traderStore.js";
 
 import { growwClient } from "./src/server/growwClient.js";
@@ -170,6 +174,28 @@ async function startServer() {
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message || "Historical training error" });
     }
+  });
+
+  // Isolated Paper Bot API Endpoints
+  app.get("/api/paper-bot/state", (_req, res) => {
+    res.json({ success: true, botState: getPaperBotState() });
+  });
+
+  app.post("/api/paper-bot/config", (req, res) => {
+    const { budget, enabled } = req.body;
+    const botState = updatePaperBotConfig(Number(budget || 25000), enabled !== false);
+    res.json({ success: true, botState });
+  });
+
+  app.post("/api/paper-bot/reset", (req, res) => {
+    const budget = req.body.budget ? Number(req.body.budget) : undefined;
+    const botState = resetPaperBot(budget);
+    res.json({ success: true, botState });
+  });
+
+  app.post("/api/paper-bot/step", (_req, res) => {
+    const botState = stepPaperBot();
+    res.json({ success: true, botState });
   });
 
   // Reset Portfolio (Supports hard reset & custom starting capital)

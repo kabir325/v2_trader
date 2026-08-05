@@ -71,8 +71,11 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
   const [useVolumeSpike, setUseVolumeSpike] = useState<boolean>(true);
   const [useBollinger, setUseBollinger] = useState<boolean>(true);
 
-  // States
+  // Training Queue & Progress State
   const [loading, setLoading] = useState<boolean>(false);
+  const [trainingProgress, setTrainingProgress] = useState<number>(0);
+  const [trainingStage, setTrainingStage] = useState<string>("");
+  const [showGlossary, setShowGlossary] = useState<boolean>(true);
   const [fetchingData, setFetchingData] = useState<boolean>(false);
   const [rawCandlesCount, setRawCandlesCount] = useState<number>(0);
   const [trainResult, setTrainResult] = useState<HistoricalTrainResult | null>(null);
@@ -92,28 +95,27 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
     handleTrainModel();
   }, [selectedSymbol, timeframe, interval]);
 
-  const handleFetchCandles = async () => {
-    setFetchingData(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/groww/historical?symbol=${encodeURIComponent(selectedSymbol)}&timeframe=${timeframe}&interval=${interval}`);
-      const data = await res.json();
-      if (data.success) {
-        setRawCandlesCount(data.total || 0);
-      } else {
-        setError(data.error || "Failed to fetch Groww historical data");
-      }
-    } catch (err: any) {
-      setError(err.message || "Network error fetching historical candles");
-    } finally {
-      setFetchingData(false);
-    }
-  };
-
   const handleTrainModel = async () => {
     setLoading(true);
+    setTrainingProgress(10);
+    setTrainingStage("Queued — Fetching Groww Historical OHLCV Quotes...");
     setError(null);
     setDeployed(false);
+
+    const stageTimer1 = setTimeout(() => {
+      setTrainingProgress(35);
+      setTrainingStage("Stage 2/4: Calculating Technical Indicators (RSI, MACD, EMA 20/50)...");
+    }, 400);
+
+    const stageTimer2 = setTimeout(() => {
+      setTrainingProgress(65);
+      setTrainingStage("Stage 3/4: Optimizing Neural Loss Weights across Iterations...");
+    }, 800);
+
+    const stageTimer3 = setTimeout(() => {
+      setTrainingProgress(88);
+      setTrainingStage("Stage 4/4: Running Historical Backtest Strategy & Metrics...");
+    }, 1200);
 
     const options: HistoricalTrainOptions = {
       symbol: selectedSymbol,
@@ -140,6 +142,8 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
+        setTrainingProgress(100);
+        setTrainingStage("Training Complete! Model weights updated successfully.");
         setTrainResult(data.result);
         setRawCandlesCount(data.result.totalCandles);
       } else {
@@ -148,7 +152,12 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
     } catch (err: any) {
       setError(err.message || "Error running model training");
     } finally {
-      setLoading(false);
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+      clearTimeout(stageTimer3);
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
     }
   };
 
@@ -333,21 +342,43 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="space-y-2 pt-2">
+          {/* Action Buttons & Training Queue Progress */}
+          <div className="space-y-3 pt-2">
             <button
               onClick={handleTrainModel}
               disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-teal-500 hover:from-indigo-500 hover:to-teal-400 text-white font-bold text-xs shadow-md shadow-indigo-950/50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-teal-500 hover:from-indigo-500 hover:to-teal-400 text-white font-bold text-xs shadow-md shadow-indigo-950/50 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <Play className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-              {loading ? "Training Model on Historical Data..." : `Train Model on ${selectedSymbol} Data`}
+              {loading ? `Training ${selectedSymbol} Model (${trainingProgress}%)...` : `Train Model on ${selectedSymbol} Data`}
             </button>
 
-            {trainResult && (
+            {/* Live Model Training Queue Progress Bar */}
+            {loading && (
+              <div className="bg-indigo-950/70 border border-indigo-500/40 p-3.5 rounded-xl space-y-2 shadow-inner">
+                <div className="flex items-center justify-between text-xs font-bold text-indigo-200">
+                  <span className="flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-none">
+                    <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping shrink-0" />
+                    {trainingStage}
+                  </span>
+                  <span className="text-teal-300 font-mono text-xs">{trainingProgress}%</span>
+                </div>
+                <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-indigo-500/30 p-0.5">
+                  <div
+                    className="bg-gradient-to-r from-indigo-500 via-teal-400 to-emerald-400 h-full transition-all duration-300 rounded-full shadow-sm"
+                    style={{ width: `${trainingProgress}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 text-center">
+                  Processing real Groww historical bars. Do not close tab.
+                </p>
+              </div>
+            )}
+
+            {trainResult && !loading && (
               <button
                 onClick={handleDeploy}
-                className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
+                className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   deployed
                     ? "bg-emerald-500 text-slate-950"
                     : "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
@@ -356,6 +387,44 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
                 {deployed ? <Check className="w-4 h-4" /> : <Zap className="w-3.5 h-3.5 text-amber-400" />}
                 {deployed ? "Model Deployed to Live Engine!" : "Deploy Model Weights to Live Trader"}
               </button>
+            )}
+          </div>
+
+          {/* Plain English Financial Terms Explained (Accordion / Card) */}
+          <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2">
+            <button
+              onClick={() => setShowGlossary(!showGlossary)}
+              className="w-full flex items-center justify-between text-xs font-bold text-slate-300 hover:text-white transition-colors"
+            >
+              <span className="flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-teal-400" />
+                Financial Terms Explained in Simple Words
+              </span>
+              <span className="text-[10px] text-indigo-400">{showGlossary ? "Hide ▲" : "Show Terms ▼"}</span>
+            </button>
+
+            {showGlossary && (
+              <div className="space-y-2 pt-2 border-t border-slate-800 text-[11px] text-slate-400">
+                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 space-y-0.5">
+                  <div className="font-bold text-slate-200">📈 RSI Momentum (Relative Strength Index)</div>
+                  <p>Think of RSI as a stock's speedometer. Above 70 means it's overbought (price went up too fast, might drop). Below 30 means it's oversold (cheap discount price!).</p>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 space-y-0.5">
+                  <div className="font-bold text-slate-200">📊 MACD Signal Crossover</div>
+                  <p>A trend compass. When the MACD line cuts above the signal line, buying momentum is speeding up—signaling a great entry point.</p>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 space-y-0.5">
+                  <div className="font-bold text-slate-200">⚡ EMA 20/50 Crossover</div>
+                  <p>Compares short-term trend (20-day average) vs long-term trend (50-day average). When 20 goes above 50, it confirms a strong upward bull trend.</p>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 space-y-0.5">
+                  <div className="font-bold text-slate-200">🎯 Backtest Win Rate & Profit Factor</div>
+                  <p><strong className="text-slate-200">Win Rate:</strong> Out of 100 simulated trades, how many made money. <strong className="text-slate-200">Profit Factor:</strong> Total money won divided by total money lost (Anything over 1.5 is excellent!).</p>
+                </div>
+              </div>
             )}
           </div>
         </div>

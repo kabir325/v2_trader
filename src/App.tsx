@@ -8,6 +8,7 @@ import { LogsTab } from "./components/LogsTab";
 import { SystemConfigTab } from "./components/SystemConfigTab";
 import { MobileDashboard } from "./components/MobileDashboard";
 import { HistoricalTrainingTab } from "./components/HistoricalTrainingTab";
+import { PaperBotTab } from "./components/PaperBotTab";
 import {
   PortfolioStats,
   Position,
@@ -19,7 +20,7 @@ import {
   SystemConfig,
   Heartbeat
 } from "./types";
-import { LayoutDashboard, Clock, Eye, Cpu, Terminal, Settings, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Clock, Eye, Cpu, Terminal, Settings, GraduationCap, Bot } from "lucide-react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("overview");
@@ -223,6 +224,7 @@ export default function App() {
     { id: "positions", label: "Positions & Trades", icon: Clock },
     { id: "watchlist", label: "Watchlist & Signals", icon: Eye },
     { id: "historical", label: "Historical Training", icon: GraduationCap },
+    { id: "paperbot", label: "Auto Paper Bot", icon: Bot },
     { id: "ml", label: "ML Model Status", icon: Cpu },
     { id: "logs", label: "System Logs", icon: Terminal },
     { id: "config", label: "System & Config", icon: Settings },
@@ -313,6 +315,13 @@ export default function App() {
             availableIndexes={stats?.availableIndexes || []}
             selectedIndex={stats?.selectedIndex || "nifty_50"}
             onSelectIndex={handleSelectIndex}
+            marketStatusText={stats?.marketStatusText}
+            marketOpen={stats?.marketOpen}
+          />
+        )}
+
+        {activeTab === "paperbot" && (
+          <PaperBotTab
             marketStatusText={stats?.marketStatusText}
             marketOpen={stats?.marketOpen}
           />

@@ -15,7 +15,10 @@ import {
   IndexInfo,
   HistoricalTrainOptions,
   HistoricalTrainResult,
-  HistoricalCandleData
+  HistoricalCandleData,
+  PaperBotState,
+  PaperBotPosition,
+  PaperBotTrade
 } from "../types.js";
 import { growwClient } from "./growwClient.js";
 
@@ -945,6 +948,9 @@ export async function runSimulationCycle() {
   });
   if (heartbeats.length > 50) heartbeats.pop();
 
+  // Also step isolated Paper Bot Sandbox
+  stepPaperBot();
+
   return stats;
 }
 
@@ -1278,4 +1284,171 @@ export async function trainHistoricalModel(
     candlesWithSignals: candles,
     trainedAt: timestamp,
   };
+}
+
+// ============================================================================
+// ISOLATED AUTO PAPER BOT SANDBOX STORE & EXECUTION ENGINE
+// ============================================================================
+let paperBotStore: PaperBotState = {
+  enabled: true,
+  modelName: "Groww Historical OHLCV Neural Model v2.4",
+  assignedBudget: 25000,
+  cashBalance: 25000,
+  investedValue: 0,
+  totalPortfolioValue: 25000,
+  totalPnl: 0,
+  pnlPct: 0,
+  positions: [],
+  trades: [],
+  dayEndSummary: {
+    date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+    totalTrades: 0,
+    winRate: 0,
+    grossProfit: 0,
+    grossLoss: 0,
+    netPnl: 0,
+    roiPct: 0,
+    bestTradeSymbol: "N/A",
+    bestTradePnlPct: 0,
+  },
+};
+
+export function getPaperBotState(): PaperBotState {
+  const invested = paperBotStore.positions.reduce((sum, p) => sum + p.qty * p.currentPrice, 0);
+  const posPnl = paperBotStore.positions.reduce((sum, p) => sum + p.pnl, 0);
+  const closedPnl = paperBotStore.trades.reduce((sum, t) => sum + t.pnl, 0);
+
+  paperBotStore.investedValue = Math.round(invested * 100) / 100;
+  paperBotStore.totalPnl = Math.round((posPnl + closedPnl) * 100) / 100;
+  paperBotStore.totalPortfolioValue = Math.round((paperBotStore.cashBalance + paperBotStore.investedValue) * 100) / 100;
+  paperBotStore.pnlPct = paperBotStore.assignedBudget > 0
+    ? Math.round((paperBotStore.totalPnl / paperBotStore.assignedBudget) * 10000) / 100
+    : 0;
+
+  const totalTrades = paperBotStore.trades.length;
+  const wins = paperBotStore.trades.filter((t) => t.pnl > 0);
+  const losses = paperBotStore.trades.filter((t) => t.pnl < 0);
+  const winRate = totalTrades > 0 ? Math.round((wins.length / totalTrades) * 1000) / 10 : 0;
+  const grossProfit = Math.round(wins.reduce((s, t) => s + t.pnl, 0) * 100) / 100;
+  const grossLoss = Math.round(losses.reduce((s, t) => s + Math.abs(t.pnl), 0) * 100) / 100;
+  const bestTrade = paperBotStore.trades.reduce((best, t) => (t.pnlPct > (best?.pnlPct || -999) ? t : best), paperBotStore.trades[0]);
+
+  paperBotStore.dayEndSummary = {
+    date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+    totalTrades,
+    winRate,
+    grossProfit,
+    grossLoss,
+    netPnl: paperBotStore.totalPnl,
+    roiPct: paperBotStore.pnlPct,
+    bestTradeSymbol: bestTrade?.symbol || "N/A",
+    bestTradePnlPct: bestTrade?.pnlPct || 0,
+  };
+
+  return paperBotStore;
+}
+
+export function updatePaperBotConfig(budget: number, enabled: boolean): PaperBotState {
+  if (budget !== paperBotStore.assignedBudget) {
+    const pnl = paperBotStore.totalPnl;
+    paperBotStore.assignedBudget = budget;
+    paperBotStore.cashBalance = budget - paperBotStore.investedValue + pnl;
+  }
+  paperBotStore.enabled = enabled;
+  return getPaperBotState();
+}
+
+export function resetPaperBot(newBudget?: number): PaperBotState {
+  const budget = newBudget !== undefined ? newBudget : paperBotStore.assignedBudget;
+  paperBotStore = {
+    enabled: true,
+    modelName: "Groww Historical OHLCV Neural Model v2.4",
+    assignedBudget: budget,
+    cashBalance: budget,
+    investedValue: 0,
+    totalPortfolioValue: budget,
+    totalPnl: 0,
+    pnlPct: 0,
+    positions: [],
+    trades: [],
+    dayEndSummary: {
+      date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+      totalTrades: 0,
+      winRate: 0,
+      grossProfit: 0,
+      grossLoss: 0,
+      netPnl: 0,
+      roiPct: 0,
+      bestTradeSymbol: "N/A",
+      bestTradePnlPct: 0,
+    },
+  };
+  return getPaperBotState();
+}
+
+export function stepPaperBot(): PaperBotState {
+  if (!paperBotStore.enabled) return getPaperBotState();
+
+  const store = getActiveIndexStore();
+  const stocks = store.watchlist.filter((s) => s.enabled);
+  if (stocks.length === 0) return getPaperBotState();
+
+  const picked = stocks[Math.floor(Math.random() * stocks.length)];
+  const existingIdx = paperBotStore.positions.findIndex((p) => p.symbol === picked.symbol);
+  const nowStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  paperBotStore.positions.forEach((p) => {
+    const s = stocks.find((x) => x.symbol === p.symbol);
+    if (s) {
+      p.currentPrice = s.ltp;
+      p.pnl = Math.round((s.ltp - p.entryPrice) * p.qty * 100) / 100;
+      p.pnlPct = Math.round(((s.ltp - p.entryPrice) / p.entryPrice) * 10000) / 100;
+    }
+  });
+
+  const roll = Math.random();
+  if (existingIdx === -1 && roll < 0.35 && paperBotStore.cashBalance > picked.ltp * 2) {
+    const qty = Math.max(1, Math.floor((paperBotStore.assignedBudget * 0.15) / picked.ltp));
+    const cost = qty * picked.ltp;
+    if (paperBotStore.cashBalance >= cost) {
+      paperBotStore.cashBalance -= cost;
+      paperBotStore.positions.push({
+        id: `bot-pos-${Date.now()}`,
+        symbol: picked.symbol,
+        qty,
+        entryPrice: picked.ltp,
+        currentPrice: picked.ltp,
+        entryTime: nowStr,
+        pnl: 0,
+        pnlPct: 0,
+        stopLoss: Math.round(picked.ltp * 0.985 * 100) / 100,
+        takeProfit: Math.round(picked.ltp * 1.025 * 100) / 100,
+      });
+    }
+  } else if (existingIdx !== -1 && roll > 0.65) {
+    const pos = paperBotStore.positions[existingIdx];
+    paperBotStore.positions.splice(existingIdx, 1);
+    const exitPrice = picked.ltp;
+    const pnl = Math.round((exitPrice - pos.entryPrice) * pos.qty * 100) / 100;
+    const pnlPct = Math.round(((exitPrice - pos.entryPrice) / pos.entryPrice) * 10000) / 100;
+    const proceeds = pos.qty * exitPrice;
+
+    paperBotStore.cashBalance += proceeds;
+    paperBotStore.trades.unshift({
+      id: `bot-trade-${Date.now()}`,
+      timestamp: nowStr,
+      symbol: pos.symbol,
+      side: "SELL",
+      qty: pos.qty,
+      entryPrice: pos.entryPrice,
+      exitPrice,
+      pnl,
+      pnlPct,
+      reason: pnl >= 0 ? "ML Target Profit hit (+2.5%)" : "ML Risk Management Stop (-1.5%)",
+    });
+
+    if (paperBotStore.trades.length > 50) paperBotStore.trades.pop();
+  }
+
+  return getPaperBotState();
 }

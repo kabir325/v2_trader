@@ -259,3 +259,53 @@ export interface HistoricalTrainResult {
   candlesWithSignals: HistoricalCandleData[];
   trainedAt: string;
 }
+
+export interface PaperBotPosition {
+  id: string;
+  symbol: string;
+  qty: number;
+  entryPrice: number;
+  currentPrice: number;
+  entryTime: string;
+  pnl: number;
+  pnlPct: number;
+  stopLoss: number;
+  takeProfit: number;
+}
+
+export interface PaperBotTrade {
+  id: string;
+  timestamp: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  qty: number;
+  entryPrice: number;
+  exitPrice: number;
+  pnl: number;
+  pnlPct: number;
+  reason: string;
+}
+
+export interface PaperBotState {
+  enabled: boolean;
+  modelName: string;
+  assignedBudget: number;
+  cashBalance: number;
+  investedValue: number;
+  totalPortfolioValue: number;
+  totalPnl: number;
+  pnlPct: number;
+  positions: PaperBotPosition[];
+  trades: PaperBotTrade[];
+  dayEndSummary: {
+    date: string;
+    totalTrades: number;
+    winRate: number;
+    grossProfit: number;
+    grossLoss: number;
+    netPnl: number;
+    roiPct: number;
+    bestTradeSymbol: string;
+    bestTradePnlPct: number;
+  };
+}

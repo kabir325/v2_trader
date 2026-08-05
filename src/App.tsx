@@ -126,6 +126,24 @@ export default function App() {
     window.open("/api/reports/download?type=trades", "_blank");
   };
 
+  const handleSelectIndex = async (indexId: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/trader/select-index", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index: indexId }),
+      });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch (err) {
+      console.error("Error selecting index:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddStock = async (stock: {
     symbol: string;
     category: string;
@@ -206,13 +224,14 @@ export default function App() {
         onRetrainModel={retrainModel}
         onResetPortfolio={resetPortfolio}
         onDownloadReport={downloadReport}
+        onSelectIndex={handleSelectIndex}
         loading={loading}
       />
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="max-w-[1850px] mx-auto px-3 sm:px-6 py-3.5 space-y-3.5">
         {/* Navigation Tabs Bar */}
-        <div className="flex items-center gap-1 overflow-x-auto bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 backdrop-blur-md">
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 backdrop-blur-md">
           {navTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

@@ -26,9 +26,9 @@ export const LogsTab: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 sm:space-y-4">
       {/* File Viewer Card */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">

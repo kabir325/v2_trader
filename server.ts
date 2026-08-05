@@ -3,17 +3,17 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import {
   config,
-  currentWeek,
-  watchlist,
-  positions,
-  closedTrades,
-  signals,
-  modelRuns,
   systemEvents,
   heartbeats,
-  equityCurve,
   logFilesContent,
   getPortfolioStats,
+  getWatchlist,
+  getSignals,
+  getMlStatus,
+  getAvailableIndexes,
+  getSelectedIndex,
+  setSelectedIndex,
+  getActiveIndexStore,
   getStockHistory,
   runSimulationCycle,
   retrainModel,
@@ -34,14 +34,39 @@ async function startServer() {
     res.json({ status: "ok", app: "My Money Maker - Algorithmic Trader" });
   });
 
-  // Portfolio Overview
+  // Available Indexes & Switch active index
+  app.get("/api/indexes", (_req, res) => {
+    res.json({
+      indexes: getAvailableIndexes(),
+      selectedIndex: getSelectedIndex(),
+    });
+  });
+
+  app.post("/api/trader/select-index", (req, res) => {
+    const { index } = req.body;
+    if (!index || typeof index !== "string") {
+      return res.status(400).json({ error: "Index ID is required" });
+    }
+    const stats = setSelectedIndex(index);
+    const activeStore = getActiveIndexStore();
+    res.json({
+      success: true,
+      stats,
+      watchlist: activeStore.watchlist,
+      signals: activeStore.signals,
+      mlStatus: getMlStatus(),
+    });
+  });
+
+  // Portfolio Overview for current active index
   app.get("/api/portfolio", (_req, res) => {
     const stats = getPortfolioStats();
+    const activeStore = getActiveIndexStore();
     res.json({
       stats,
-      positions,
-      closedTrades,
-      equityCurve,
+      positions: activeStore.positions,
+      closedTrades: activeStore.closedTrades,
+      equityCurve: activeStore.equityCurve,
     });
   });
 
@@ -49,11 +74,12 @@ async function startServer() {
   app.post("/api/trader/cycle", async (_req, res) => {
     try {
       const stats = await runSimulationCycle();
+      const activeStore = getActiveIndexStore();
       res.json({
         success: true,
         stats,
-        latestSignal: signals[0],
-        latestHeartbeat: heartbeats[0],
+        latestSignal: activeStore.signals[0] || null,
+        latestHeartbeat: heartbeats[0] || null,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Cycle error" });
@@ -110,13 +136,13 @@ async function startServer() {
     }
   });
 
-  // Trigger Model Retraining
+  // Trigger Model Retraining specifically for active index
   app.post("/api/trader/train-model", (_req, res) => {
     const newRun = retrainModel();
     res.json({
       success: true,
       run: newRun,
-      message: "ML Model retrained successfully",
+      message: `ML Model retrained successfully for active index [${getActiveIndexStore().name}]`,
     });
   });
 
@@ -128,13 +154,13 @@ async function startServer() {
     res.json({
       success: true,
       stats,
-      message: hardReset ? "Hard reset complete. All trading history wiped." : "Portfolio reset to initial capital",
+      message: hardReset ? "Hard reset complete. Trading history wiped." : "Portfolio reset to initial capital",
     });
   });
 
   // Watchlist Endpoints
   app.get("/api/watchlist", (_req, res) => {
-    res.json(watchlist);
+    res.json(getWatchlist());
   });
 
   app.post("/api/watchlist", (req, res) => {
@@ -143,9 +169,10 @@ async function startServer() {
       return res.status(400).json({ error: "Symbol is required" });
     }
     const cleanSym = symbol.trim().toUpperCase();
+    const watchlist = getWatchlist();
     const existing = watchlist.find((w) => w.symbol === cleanSym);
     if (existing) {
-      return res.status(400).json({ error: "Stock already in watchlist" });
+      return res.status(400).json({ error: "Stock already in active index watchlist" });
     }
 
     const newItem = {
@@ -171,6 +198,7 @@ async function startServer() {
 
   app.patch("/api/watchlist/:symbol", (req, res) => {
     const cleanSym = req.params.symbol.toUpperCase();
+    const watchlist = getWatchlist();
     const item = watchlist.find((w) => w.symbol === cleanSym);
     if (!item) {
       return res.status(404).json({ error: "Stock not found" });
@@ -185,31 +213,23 @@ async function startServer() {
 
   app.delete("/api/watchlist/:symbol", (req, res) => {
     const cleanSym = req.params.symbol.toUpperCase();
+    const watchlist = getWatchlist();
     const idx = watchlist.findIndex((w) => w.symbol === cleanSym);
     if (idx === -1) {
       return res.status(404).json({ error: "Stock not found" });
     }
     watchlist.splice(idx, 1);
-    res.json({ success: true, message: `Removed ${cleanSym} from watchlist` });
+    res.json({ success: true, message: `Removed ${cleanSym} from active index watchlist` });
   });
 
-  // Trading Signals
+  // Trading Signals for active index
   app.get("/api/signals", (_req, res) => {
-    res.json(signals);
+    res.json(getSignals());
   });
 
-  // ML Status
+  // ML Status for active index
   app.get("/api/ml/status", (_req, res) => {
-    const totalSamples = modelRuns.reduce((sum, r) => sum + r.samples, 1850);
-    res.json({
-      currentWeek,
-      paperTrainingWeeks: config.trading.paper_training_weeks,
-      minSamples: config.trading.min_training_samples,
-      totalSamples,
-      isLivePhase: currentWeek > config.trading.paper_training_weeks,
-      latestRun: modelRuns[0] || null,
-      runs: modelRuns,
-    });
+    res.json(getMlStatus());
   });
 
   // System Logs & DB Events
@@ -226,9 +246,11 @@ async function startServer() {
 
   // Configuration
   app.get("/api/config", (_req, res) => {
+    const watchlist = getWatchlist();
+    const store = getActiveIndexStore();
     res.json({
       config,
-      currentWeek,
+      currentWeek: store.currentWeek,
       activeSymbolsCount: watchlist.filter((w) => w.enabled).length,
       totalWatchlistCount: watchlist.length,
       heartbeats,
@@ -327,22 +349,23 @@ WantedBy=multi-user.target
   // Download Reports (CSV)
   app.get("/api/reports/download", (req, res) => {
     const type = (req.query.type as string) || "trades";
+    const store = getActiveIndexStore();
     let csv = "";
     if (type === "trades") {
       csv = "id,timestamp,symbol,side,qty,price,total,mode,pnl,pnlPct,reason\n";
-      closedTrades.forEach((t) => {
+      store.closedTrades.forEach((t) => {
         csv += `${t.id},${t.timestamp},${t.symbol},${t.side},${t.qty},${t.price},${t.total},${t.mode},${t.pnl || 0},${t.pnlPct || 0},"${t.reason}"\n`;
       });
       res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", "attachment; filename=closed_trades_report.csv");
+      res.setHeader("Content-Disposition", `attachment; filename=closed_trades_${store.id}.csv`);
       return res.send(csv);
     } else {
       csv = "id,symbol,qty,avgPrice,currentPrice,pnl,pnlPct,mode,entryTime\n";
-      positions.forEach((p) => {
+      store.positions.forEach((p) => {
         csv += `${p.id},${p.symbol},${p.qty},${p.avgPrice},${p.currentPrice},${p.pnl},${p.pnlPct},${p.mode},${p.entryTime}\n`;
       });
       res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", "attachment; filename=active_positions_report.csv");
+      res.setHeader("Content-Disposition", `attachment; filename=active_positions_${store.id}.csv`);
       return res.send(csv);
     }
   });

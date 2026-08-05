@@ -39,6 +39,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [chartLoading, setChartLoading] = useState<boolean>(false);
 
   useEffect(() => {
+    if (watchlist && watchlist.length > 0) {
+      const exists = watchlist.some((w) => w.symbol === selectedStock);
+      if (!exists) {
+        setSelectedStock(watchlist[0].symbol);
+      }
+    }
+  }, [watchlist]);
+
+  useEffect(() => {
     if (!selectedStock) return;
     setChartLoading(true);
     fetch(`/api/stocks/${selectedStock}/history`)
@@ -57,7 +66,39 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const isPositive = totalPnl >= 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 sm:space-y-4">
+      {/* Active Index & RL Model Context Banner */}
+      <div className="bg-slate-900 border border-teal-500/30 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-900 to-teal-950/40">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-400">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-white">
+                Active Index: <span className="text-teal-300">{stats?.selectedIndexName || "NIFTY 50"}</span>
+              </h2>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-semibold border border-teal-500/40">
+                {watchlist.length} Listed Stocks
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Reinforcement Learning policy and RandomForest model trained strictly on <strong className="text-slate-200">{stats?.selectedIndexName || "NIFTY 50"}</strong> constituent data.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 text-xs shrink-0">
+          <div className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300">
+            <span className="text-slate-400">RL Episodes: </span>
+            <strong className="text-emerald-400">{stats?.rlStats?.episodes || 142}</strong>
+          </div>
+          <div className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300">
+            <span className="text-slate-400">Exploration Rate (ε): </span>
+            <strong className="text-amber-400">{(stats?.rlStats?.explorationRate || 0.45).toFixed(2)}</strong>
+          </div>
+        </div>
+      </div>
+
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Portfolio Value */}

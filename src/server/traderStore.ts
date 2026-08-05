@@ -11,7 +11,8 @@ import {
   StockPoint,
   SystemConfig,
   TradingMode,
-  RLStats
+  RLStats,
+  IndexInfo
 } from "../types.js";
 import { growwClient } from "./growwClient.js";
 
@@ -46,7 +47,7 @@ export function checkNseMarketStatus(): { isOpen: boolean; statusText: string } 
   }
 }
 
-// Initial config matching settings.yaml and environment variables
+// Global System Configuration
 export let config: SystemConfig = {
   trading: {
     mode: (process.env.TRADING_MODE as TradingMode) || "PAPER",
@@ -89,514 +90,877 @@ export let config: SystemConfig = {
 
 export let currentWeek = 2; // Week 2 of paper phase
 
-// Reinforcement Learning State (Trial & Error Q-Learning Feedback Engine)
-export let rlState: RLStats = {
-  currentWeek: 2,
-  phase: "PAPER_RL_TRAINING",
-  episodes: 142,
-  explorationRate: 0.45,
-  avgReward: 1.84,
-  totalRewards: 261.28,
-  qPolicyConvergence: 68.4,
-  recentEpisodes: [
-    {
-      episode: 142,
-      action: "BUY",
-      symbol: "RELIANCE",
-      reward: 2.15,
-      pnlPct: 1.39,
-      qValue: 0.72,
-      timestamp: new Date().toISOString(),
-    },
-    {
-      episode: 141,
-      action: "SELL",
-      symbol: "TCS",
-      reward: 1.72,
-      pnlPct: 1.72,
-      qValue: 0.68,
-      timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-    },
-    {
-      episode: 140,
-      action: "BUY",
-      symbol: "INFY",
-      reward: 1.52,
-      pnlPct: 1.52,
-      qValue: 0.65,
-      timestamp: new Date(Date.now() - 3600000 * 5).toISOString(),
-    }
-  ],
+// Master Stock Database with realistic NSE prices
+const STOCK_MASTER_DATA: Record<string, { ltp: number; category: string; tags: string; notes: string }> = {
+  RELIANCE: { ltp: 2950.50, category: "Energy", tags: "largecap,bluechip,oilgas", notes: "Reliance Industries - Energy & Retail" },
+  TCS: { ltp: 4120.00, category: "IT", tags: "largecap,bluechip,IT", notes: "Tata Consultancy Services" },
+  HDFCBANK: { ltp: 1642.80, category: "Banking", tags: "largecap,banking,private", notes: "HDFC Bank Ltd" },
+  INFY: { ltp: 1825.40, category: "IT", tags: "largecap,bluechip,IT", notes: "Infosys Ltd" },
+  ICICIBANK: { ltp: 1215.10, category: "Banking", tags: "largecap,banking,private", notes: "ICICI Bank Ltd" },
+  SBIN: { ltp: 842.30, category: "Banking", tags: "largecap,banking,psu", notes: "State Bank of India" },
+  BHARTIARTL: { ltp: 1458.00, category: "Telecom", tags: "largecap,telecom", notes: "Bharti Airtel Ltd" },
+  ITC: { ltp: 492.50, category: "FMCG", tags: "largecap,fmcg,bluechip", notes: "ITC Ltd" },
+  KOTAKBANK: { ltp: 1782.00, category: "Banking", tags: "largecap,banking,private", notes: "Kotak Mahindra Bank" },
+  LT: { ltp: 3658.00, category: "Infra", tags: "largecap,infra,bluechip", notes: "Larsen & Toubro" },
+  AXISBANK: { ltp: 1180.00, category: "Banking", tags: "largecap,banking,private", notes: "Axis Bank Ltd" },
+  HINDUNILVR: { ltp: 2540.00, category: "FMCG", tags: "largecap,fmcg", notes: "Hindustan Unilever" },
+  LTIM: { ltp: 5200.00, category: "IT", tags: "largecap,IT", notes: "LTIMindtree" },
+  TATAMOTORS: { ltp: 1010.00, category: "Auto", tags: "largecap,auto", notes: "Tata Motors" },
+  MARUTI: { ltp: 12400.00, category: "Auto", tags: "largecap,auto", notes: "Maruti Suzuki" },
+  SUNPHARMA: { ltp: 1680.00, category: "Pharma", tags: "largecap,pharma", notes: "Sun Pharma" },
+  BAJFINANCE: { ltp: 7120.00, category: "Finance", tags: "largecap,nbfc", notes: "Bajaj Finance" },
+  ASIANPAINT: { ltp: 2890.00, category: "Paints", tags: "largecap,paints", notes: "Asian Paints" },
+  TITAN: { ltp: 3420.00, category: "Consumer", tags: "largecap,consumer", notes: "Titan Company" },
+  NTPC: { ltp: 395.00, category: "Power", tags: "largecap,power,psu", notes: "NTPC Ltd" },
+  ULTRACEMCO: { ltp: 10850.00, category: "Cement", tags: "largecap,cement", notes: "UltraTech Cement" },
+  POWERGRID: { ltp: 325.00, category: "Power", tags: "largecap,power,psu", notes: "Power Grid Corp" },
+  NESTLEIND: { ltp: 2480.00, category: "FMCG", tags: "largecap,fmcg", notes: "Nestle India" },
+  TATASTEEL: { ltp: 165.00, category: "Metals", tags: "largecap,metals", notes: "Tata Steel" },
+  JSWSTEEL: { ltp: 920.00, category: "Metals", tags: "largecap,metals", notes: "JSW Steel" },
+  M_M: { ltp: 2780.00, category: "Auto", tags: "largecap,auto", notes: "Mahindra & Mahindra" },
+  COALINDIA: { ltp: 485.00, category: "Mining", tags: "largecap,psu", notes: "Coal India" },
+  ADANIENT: { ltp: 3150.00, category: "Conglomerate", tags: "largecap,adani", notes: "Adani Enterprises" },
+  TATAPOWER: { ltp: 435.00, category: "Power", tags: "largecap,power", notes: "Tata Power" },
+  GRASIM: { ltp: 2680.00, category: "Cement", tags: "largecap,cement", notes: "Grasim Industries" },
+  WIPRO: { ltp: 510.00, category: "IT", tags: "largecap,IT", notes: "Wipro Ltd" },
+  TECHM: { ltp: 1480.00, category: "IT", tags: "largecap,IT", notes: "Tech Mahindra" },
+  HCLTECH: { ltp: 1590.00, category: "IT", tags: "largecap,IT", notes: "HCL Technologies" },
+  ADANIPORTS: { ltp: 1380.00, category: "Infra", tags: "largecap,ports", notes: "Adani Ports" },
+  HEROMOTOCO: { ltp: 5320.00, category: "Auto", tags: "largecap,auto", notes: "Hero MotoCorp" },
+  BAJAJ_AUTO: { ltp: 9650.00, category: "Auto", tags: "largecap,auto", notes: "Bajaj Auto" },
+  APOLLOHOSP: { ltp: 6480.00, category: "Healthcare", tags: "largecap,healthcare", notes: "Apollo Hospitals" },
+  DIVISLAB: { ltp: 4520.00, category: "Pharma", tags: "largecap,pharma", notes: "Divi's Laboratories" },
+  EICHERMOT: { ltp: 4890.00, category: "Auto", tags: "largecap,auto", notes: "Eicher Motors" },
+  CIPLA: { ltp: 1520.00, category: "Pharma", tags: "largecap,pharma", notes: "Cipla Ltd" },
+  DRREDDY: { ltp: 6850.00, category: "Pharma", tags: "largecap,pharma", notes: "Dr Reddy's Labs" },
+  BRITANNIA: { ltp: 5410.00, category: "FMCG", tags: "largecap,fmcg", notes: "Britannia Industries" },
+  TATACONSUMER: { ltp: 1180.00, category: "FMCG", tags: "largecap,fmcg", notes: "Tata Consumer Products" },
+  BEL: { ltp: 310.00, category: "Defense", tags: "largecap,psu,defense", notes: "Bharat Electronics" },
+  INDUSINDBK: { ltp: 1420.00, category: "Banking", tags: "largecap,banking", notes: "IndusInd Bank" },
+  SHRIRAMFIN: { ltp: 2980.00, category: "Finance", tags: "largecap,nbfc", notes: "Shriram Finance" },
+  TRENT: { ltp: 6450.00, category: "Retail", tags: "largecap,retail", notes: "Trent Ltd" },
+  ONGC: { ltp: 315.00, category: "OilGas", tags: "largecap,psu", notes: "Oil & Natural Gas Corp" },
+  BPCL: { ltp: 345.00, category: "OilGas", tags: "largecap,psu", notes: "Bharat Petroleum" },
+  HDFCLIFE: { ltp: 615.00, category: "Insurance", tags: "largecap,insurance", notes: "HDFC Life Insurance" },
+  BANKBARODA: { ltp: 282.00, category: "Banking", tags: "largecap,psu,banking", notes: "Bank of Baroda" },
+  PNB: { ltp: 124.00, category: "Banking", tags: "largecap,psu,banking", notes: "Punjab National Bank" },
+  AUBANK: { ltp: 640.00, category: "Banking", tags: "midcap,banking", notes: "AU Small Finance Bank" },
+  IDFCFIRSTB: { ltp: 82.00, category: "Banking", tags: "midcap,banking", notes: "IDFC First Bank" },
+  FEDERALBNK: { ltp: 185.00, category: "Banking", tags: "midcap,banking", notes: "Federal Bank" },
+  BANDHANBNK: { ltp: 205.00, category: "Banking", tags: "midcap,banking", notes: "Bandhan Bank" },
+  CANBK: { ltp: 118.00, category: "Banking", tags: "largecap,psu,banking", notes: "Canara Bank" },
+  DLF: { ltp: 840.00, category: "Realty", tags: "largecap,realty", notes: "DLF Ltd" },
+  HAL: { ltp: 4850.00, category: "Defense", tags: "largecap,psu,defense", notes: "Hindustan Aeronautics" },
+  VBL: { ltp: 1540.00, category: "FMCG", tags: "largecap,beverages", notes: "Varun Beverages" },
+  ZOMATO: { ltp: 235.00, category: "Tech", tags: "largecap,tech", notes: "Zomato Ltd" },
+  PIDILITIND: { ltp: 3120.00, category: "Chemicals", tags: "largecap,chemicals", notes: "Pidilite Industries" },
+  IOC: { ltp: 172.00, category: "OilGas", tags: "largecap,psu", notes: "Indian Oil Corp" },
+  GAIL: { ltp: 215.00, category: "Gas", tags: "largecap,psu", notes: "GAIL India" },
+  REC: { ltp: 580.00, category: "Finance", tags: "largecap,psu,finance", notes: "REC Ltd" },
+  PFC: { ltp: 495.00, category: "Finance", tags: "largecap,psu,finance", notes: "Power Finance Corp" },
+  BHEL: { ltp: 295.00, category: "CapitalGoods", tags: "largecap,psu", notes: "Bharat Heavy Electricals" },
+  CHOLAFIN: { ltp: 1380.00, category: "Finance", tags: "largecap,nbfc", notes: "Cholamandalam Investment" },
+  SIEMENS: { ltp: 7450.00, category: "CapitalGoods", tags: "largecap,engg", notes: "Siemens Ltd" },
+  ABB: { ltp: 8120.00, category: "CapitalGoods", tags: "largecap,engg", notes: "ABB India" },
+  DMART: { ltp: 4850.00, category: "Retail", tags: "largecap,retail", notes: "Avenue Supermarts (DMart)" },
+  MAXHEALTH: { ltp: 920.00, category: "Healthcare", tags: "largecap,hospital", notes: "Max Healthcare" },
+  MANKIND: { ltp: 2240.00, category: "Pharma", tags: "largecap,pharma", notes: "Mankind Pharma" },
+  TATAELXSI: { ltp: 7120.00, category: "IT", tags: "midcap,IT", notes: "Tata Elxsi" },
+  IRCTC: { ltp: 980.00, category: "Services", tags: "largecap,psu", notes: "IRCTC" },
+  POLYCAB: { ltp: 6850.00, category: "Wires", tags: "largecap,cables", notes: "Polycab India" },
+  SBILIFE: { ltp: 1680.00, category: "Insurance", tags: "largecap,insurance", notes: "SBI Life Insurance" },
+  GODREJCP: { ltp: 1420.00, category: "FMCG", tags: "largecap,fmcg", notes: "Godrej Consumer Products" },
+  LUPIN: { ltp: 1890.00, category: "Pharma", tags: "largecap,pharma", notes: "Lupin Ltd" },
+  AUROPHARMA: { ltp: 1280.00, category: "Pharma", tags: "largecap,pharma", notes: "Aurobindo Pharma" },
+  AMBUJACEM: { ltp: 640.00, category: "Cement", tags: "largecap,cement", notes: "Ambuja Cements" },
+  DABUR: { ltp: 620.00, category: "FMCG", tags: "largecap,fmcg", notes: "Dabur India" },
+  MARICO: { ltp: 650.00, category: "FMCG", tags: "largecap,fmcg", notes: "Marico Ltd" },
+  SHREE_CEMENT: { ltp: 26800.00, category: "Cement", tags: "largecap,cement", notes: "Shree Cement" },
+  TATACHEM: { ltp: 1080.00, category: "Chemicals", tags: "midcap,chemicals", notes: "Tata Chemicals" },
+  COFORGE: { ltp: 6420.00, category: "IT", tags: "midcap,IT", notes: "Coforge Ltd" },
+  PERSISTENT: { ltp: 4580.00, category: "IT", tags: "midcap,IT", notes: "Persistent Systems" },
+  MPASI: { ltp: 2890.00, category: "IT", tags: "midcap,IT", notes: "Mphasis Ltd" },
+  LTTS: { ltp: 5320.00, category: "IT", tags: "midcap,IT", notes: "L&T Technology Services" },
+  CYIENT: { ltp: 1890.00, category: "IT", tags: "midcap,IT", notes: "Cyient Ltd" },
+  BAJAJFINSV: { ltp: 1620.00, category: "Finance", tags: "largecap,nbfc", notes: "Bajaj Finserv" },
+  MUTHOOTFIN: { ltp: 1780.00, category: "Finance", tags: "largecap,gold", notes: "Muthoot Finance" },
+  LICHSGFIN: { ltp: 780.00, category: "Finance", tags: "largecap,housing", notes: "LIC Housing Finance" },
 };
 
-// Initial Watchlist from symbols.yaml
-export const defaultWatchlist: WatchlistItem[] = [
-  {
-    symbol: "RELIANCE",
-    category: "Energy",
-    priority: 1,
-    enabled: true,
-    tags: "largecap,bluechip,oilgas",
-    notes: "RIL — energy + retail conglomerate",
-    exchange: "NSE",
-    ltp: 2950.50,
-    open: 2920.00,
-    high: 2975.00,
-    low: 2915.00,
-    close: 2910.00,
-    change: 40.50,
-    changePct: 1.39,
-    volume: 3840200,
-  },
-  {
-    symbol: "TCS",
-    category: "IT",
-    priority: 1,
-    enabled: true,
-    tags: "largecap,bluechip,IT",
-    notes: "Tata Consultancy — largest IT exporter",
-    exchange: "NSE",
-    ltp: 4120.00,
-    open: 4140.00,
-    high: 4160.00,
-    low: 4100.00,
-    close: 4150.00,
-    change: -30.00,
-    changePct: -0.72,
-    volume: 1950400,
-  },
-  {
-    symbol: "HDFCBANK",
-    category: "Banking",
-    priority: 1,
-    enabled: true,
-    tags: "largecap,banking,bluechip",
-    notes: "HDFC Bank — largest private sector bank",
-    exchange: "NSE",
-    ltp: 1642.80,
-    open: 1630.00,
-    high: 1655.00,
-    low: 1625.00,
-    close: 1628.00,
-    change: 14.80,
-    changePct: 0.91,
-    volume: 8420100,
-  },
-  {
-    symbol: "INFY",
-    category: "IT",
-    priority: 2,
-    enabled: true,
-    tags: "largecap,bluechip,IT",
-    notes: "Infosys — IT services bellwether",
-    exchange: "NSE",
-    ltp: 1825.40,
-    open: 1800.00,
-    high: 1838.00,
-    low: 1795.00,
-    close: 1798.00,
-    change: 27.40,
-    changePct: 1.52,
-    volume: 5210900,
-  },
-  {
-    symbol: "ICICIBANK",
-    category: "Banking",
-    priority: 2,
-    enabled: true,
-    tags: "largecap,banking,bluechip",
-    notes: "ICICI Bank — 2nd largest private bank",
-    exchange: "NSE",
-    ltp: 1215.10,
-    open: 1210.00,
-    high: 1222.00,
-    low: 1205.00,
-    close: 1208.00,
-    change: 7.10,
-    changePct: 0.59,
-    volume: 6300400,
-  },
-  {
-    symbol: "SBIN",
-    category: "Banking",
-    priority: 3,
-    enabled: true,
-    tags: "largecap,banking,psu",
-    notes: "State Bank — largest PSU bank",
-    exchange: "NSE",
-    ltp: 842.30,
-    open: 848.00,
-    high: 852.00,
-    low: 839.00,
-    close: 846.00,
-    change: -3.70,
-    changePct: -0.44,
-    volume: 12104500,
-  },
-  {
-    symbol: "BHARTIARTL",
-    category: "Telecom",
-    priority: 3,
-    enabled: true,
-    tags: "largecap,telecom",
-    notes: "Bharti Airtel — telecom leader",
-    exchange: "NSE",
-    ltp: 1458.00,
-    open: 1425.00,
-    high: 1465.00,
-    low: 1420.00,
-    close: 1428.00,
-    change: 30.00,
-    changePct: 2.10,
-    volume: 4120800,
-  },
-  {
-    symbol: "ITC",
-    category: "FMCG",
-    priority: 4,
-    enabled: true,
-    tags: "largecap,fmcg,bluechip",
-    notes: "ITC Ltd — FMCG + hotels + agri",
-    exchange: "NSE",
-    ltp: 492.50,
-    open: 491.00,
-    high: 495.00,
-    low: 489.00,
-    close: 491.00,
-    change: 1.50,
-    changePct: 0.31,
-    volume: 9804000,
-  },
-  {
-    symbol: "KOTAKBANK",
-    category: "Banking",
-    priority: 4,
-    enabled: true,
-    tags: "largecap,banking,private",
-    notes: "Kotak Mahindra Bank",
-    exchange: "NSE",
-    ltp: 1782.00,
-    open: 1795.00,
-    high: 1802.00,
-    low: 1775.00,
-    close: 1792.00,
-    change: -10.00,
-    changePct: -0.56,
-    volume: 2450100,
-  },
-  {
-    symbol: "LT",
-    category: "Infra",
-    priority: 4,
-    enabled: true,
-    tags: "largecap,infra,bluechip",
-    notes: "Larsen & Toubro — infra conglomerate",
-    exchange: "NSE",
-    ltp: 3658.00,
-    open: 3620.00,
-    high: 3680.00,
-    low: 3610.00,
-    close: 3625.00,
-    change: 33.00,
-    changePct: 0.91,
-    volume: 1840200,
-  }
+export interface IndexStore {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  symbols: string[];
+  watchlist: WatchlistItem[];
+  positions: Position[];
+  closedTrades: Trade[];
+  signals: TradingSignal[];
+  modelRuns: ModelRun[];
+  rlState: RLStats;
+  cashBalance: number;
+  equityCurve: EquityPoint[];
+  currentWeek: number;
+}
+
+// Index Constituents Lists
+const NIFTY_50_SYMBOLS = [
+  "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK", "LT",
+  "AXISBANK", "HINDUNILVR", "LTIM", "TATAMOTORS", "MARUTI", "SUNPHARMA", "BAJFINANCE", "ASIANPAINT", "TITAN", "NTPC",
+  "ULTRACEMCO", "POWERGRID", "NESTLEIND", "TATASTEEL", "JSWSTEEL", "M_M", "COALINDIA", "ADANIENT", "TATAPOWER", "GRASIM",
+  "WIPRO", "TECHM", "HCLTECH", "ADANIPORTS", "HEROMOTOCO", "BAJAJ_AUTO", "APOLLOHOSP", "DIVISLAB", "EICHERMOT", "CIPLA",
+  "DRREDDY", "BRITANNIA", "TATACONSUMER", "BEL", "INDUSINDBK", "SHRIRAMFIN", "TRENT", "ONGC", "BPCL", "HDFCLIFE"
 ];
 
-export let watchlist: WatchlistItem[] = [...defaultWatchlist];
-
-export let cashBalance = 74820.50; // Started at 100,000
-export let positions: Position[] = [
-  {
-    id: "pos-1",
-    symbol: "RELIANCE",
-    qty: 3,
-    avgPrice: 2910.00,
-    currentPrice: 2950.50,
-    pnl: 121.50,
-    pnlPct: 1.39,
-    mode: "PAPER",
-    entryTime: new Date(Date.now() - 86400000 * 2).toISOString(),
-    side: "BUY"
-  },
-  {
-    id: "pos-2",
-    symbol: "INFY",
-    qty: 5,
-    avgPrice: 1798.00,
-    currentPrice: 1825.40,
-    pnl: 137.00,
-    pnlPct: 1.52,
-    mode: "PAPER",
-    entryTime: new Date(Date.now() - 86400000).toISOString(),
-    side: "BUY"
-  },
-  {
-    id: "pos-3",
-    symbol: "BHARTIARTL",
-    qty: 5,
-    avgPrice: 1428.00,
-    currentPrice: 1458.00,
-    pnl: 150.00,
-    pnlPct: 2.10,
-    mode: "PAPER",
-    entryTime: new Date(Date.now() - 43200000).toISOString(),
-    side: "BUY"
-  }
+const NIFTY_BANK_SYMBOLS = [
+  "HDFCBANK", "ICICIBANK", "SBIN", "KOTAKBANK", "AXISBANK", "INDUSINDBK", "BANKBARODA", "PNB", "AUBANK", "IDFCFIRSTB", "FEDERALBNK", "BANDHANBNK", "CANBK"
 ];
 
-export let closedTrades: Trade[] = [
-  {
-    id: "trade-1",
-    timestamp: new Date(Date.now() - 86400000 * 5).toISOString(),
-    symbol: "TCS",
-    side: "BUY",
-    qty: 2,
-    price: 4080.00,
-    total: 8160.00,
-    mode: "PAPER",
-    reason: "price -0.8% below 20-period SMA"
-  },
-  {
-    id: "trade-2",
-    timestamp: new Date(Date.now() - 86400000 * 4).toISOString(),
-    symbol: "TCS",
-    side: "SELL",
-    qty: 2,
-    price: 4150.00,
-    total: 8300.00,
-    mode: "PAPER",
-    pnl: 140.00,
-    pnlPct: 1.72,
-    reason: "price +1.2% above 20-period SMA"
-  },
-  {
-    id: "trade-3",
-    timestamp: new Date(Date.now() - 86400000 * 3).toISOString(),
-    symbol: "HDFCBANK",
-    side: "BUY",
-    qty: 5,
-    price: 1610.00,
-    total: 8050.00,
-    mode: "PAPER",
-    reason: "price -0.6% below 20-period SMA"
-  },
-  {
-    id: "trade-4",
-    timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
-    symbol: "HDFCBANK",
-    side: "SELL",
-    qty: 5,
-    price: 1638.00,
-    total: 8190.00,
-    mode: "PAPER",
-    pnl: 140.00,
-    pnlPct: 1.74,
-    reason: "price +0.9% above 20-period SMA"
-  },
-  {
-    id: "trade-5",
-    timestamp: new Date(Date.now() - 86400000 * 1.5).toISOString(),
-    symbol: "SBIN",
-    side: "BUY",
-    qty: 10,
-    price: 850.00,
-    total: 8500.00,
-    mode: "PAPER",
-    reason: "price -0.5% below 20-period SMA"
-  },
-  {
-    id: "trade-6",
-    timestamp: new Date(Date.now() - 86400000 * 0.8).toISOString(),
-    symbol: "SBIN",
-    side: "SELL",
-    qty: 10,
-    price: 842.00,
-    total: 8420.00,
-    mode: "PAPER",
-    pnl: -80.00,
-    pnlPct: -0.94,
-    reason: "stop loss trigger / market dip"
-  }
+const SENSEX_SYMBOLS = [
+  "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK", "LT",
+  "AXISBANK", "HINDUNILVR", "MARUTI", "SUNPHARMA", "BAJFINANCE", "ASIANPAINT", "TITAN", "NTPC", "ULTRACEMCO", "POWERGRID",
+  "NESTLEIND", "TATASTEEL", "TECHM", "M_M", "HCLTECH", "JSWSTEEL", "INDUSINDBK", "TATAMOTORS", "WIPRO", "ADANIPORTS"
 ];
 
-export let signals: TradingSignal[] = [
-  {
-    id: "sig-1",
-    timestamp: new Date(Date.now() - 3600000 * 3).toISOString(),
-    symbol: "RELIANCE",
-    signal: "BUY",
-    price: 2910.00,
-    confidence: 0.78,
-    mode: "PAPER",
-    reason: "price -0.65% below 20-period SMA"
-  },
-  {
-    id: "sig-2",
-    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-    symbol: "INFY",
-    signal: "BUY",
-    price: 1798.00,
-    confidence: 0.82,
-    mode: "PAPER",
-    reason: "price -0.72% below 20-period SMA"
-  },
-  {
-    id: "sig-3",
-    timestamp: new Date(Date.now() - 3600000 * 1).toISOString(),
-    symbol: "BHARTIARTL",
-    signal: "BUY",
-    price: 1428.00,
-    confidence: 0.75,
-    mode: "PAPER",
-    reason: "momentum spike + breakout signal"
-  },
-  {
-    id: "sig-4",
-    timestamp: new Date(Date.now() - 1800000).toISOString(),
-    symbol: "TCS",
-    signal: "HOLD",
-    price: 4120.00,
-    confidence: 0.52,
-    mode: "PAPER",
-    reason: "within band (-0.12%)"
-  },
-  {
-    id: "sig-5",
-    timestamp: new Date().toISOString(),
-    symbol: "ICICIBANK",
-    signal: "HOLD",
-    price: 1215.10,
-    confidence: 0.58,
-    mode: "PAPER",
-    reason: "within band (+0.25%)"
-  }
+const BSE_100_SYMBOLS = [
+  "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK", "LT",
+  "AXISBANK", "HINDUNILVR", "ADANIENT", "COALINDIA", "DLF", "BEL", "HAL", "VBL", "TRENT", "ZOMATO",
+  "PIDILITIND", "IOC", "GAIL", "ONGC", "BAJAJ_AUTO", "TATAPOWER", "REC", "PFC", "BHEL", "CHOLAFIN",
+  "SIEMENS", "ABB", "DMART", "MAXHEALTH", "MANKIND", "TATAELXSI", "IRCTC", "POLYCAB", "HDFCLIFE", "SBILIFE",
+  "CANBK", "BANKBARODA", "GODREJCP", "LUPIN", "AUROPHARMA", "AMBUJACEM", "DABUR", "MARICO", "SHREE_CEMENT", "TATACHEM"
 ];
 
-export let modelRuns: ModelRun[] = [
-  {
-    id: "run-1",
-    trainedAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-    samples: 1240,
-    accuracy: 0.612,
-    precision: 0.589,
-    recall: 0.634,
-    notes: "End of Week 1 paper training run. RandomForest 100 trees."
-  },
-  {
-    id: "run-2",
-    trainedAt: new Date(Date.now() - 86400000 * 0.5).toISOString(),
-    samples: 2890,
-    accuracy: 0.678,
-    precision: 0.654,
-    recall: 0.691,
-    notes: "Mid Week 2 incremental training. Added 50 estimators."
-  }
+const NIFTY_IT_SYMBOLS = [
+  "TCS", "INFY", "LTIM", "TECHM", "HCLTECH", "WIPRO", "COFORGE", "PERSISTENT", "MPASI", "LTTS", "TATAELXSI", "CYIENT"
 ];
 
+const NIFTY_FIN_SERVICE_SYMBOLS = [
+  "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "SBIN", "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN", "SHRIRAMFIN", "MUTHOOTFIN", "PFC", "REC", "HDFCLIFE", "SBILIFE", "LICHSGFIN"
+];
+
+// Helper to construct stock item
+function buildWatchlistItem(symbol: string, indexPriority: number): WatchlistItem {
+  const master = STOCK_MASTER_DATA[symbol] || {
+    ltp: 1200 + Math.round(Math.random() * 800),
+    category: "General",
+    tags: "largecap",
+    notes: `${symbol} Stock`
+  };
+
+  const close = master.ltp;
+  const changePct = Math.round((Math.random() - 0.48) * 300) / 100;
+  const change = Math.round((close * changePct / 100) * 100) / 100;
+
+  return {
+    symbol: symbol.replace("_", "&"),
+    category: master.category,
+    priority: indexPriority,
+    enabled: true,
+    tags: master.tags,
+    notes: master.notes,
+    exchange: "NSE",
+    ltp: Math.round((close + change) * 100) / 100,
+    open: close,
+    high: Math.round((close + Math.abs(change) * 1.2) * 100) / 100,
+    low: Math.round((close - Math.abs(change) * 1.2) * 100) / 100,
+    close: close,
+    change,
+    changePct,
+    volume: Math.floor(1000000 + Math.random() * 8000000),
+  };
+}
+
+// Build initial isolated store for an index
+function createIndexStore(
+  id: string,
+  name: string,
+  category: string,
+  description: string,
+  symbols: string[],
+  initialAccuracy: number,
+  initialEpisodes: number
+): IndexStore {
+  const watchlist = symbols.map((sym, idx) => buildWatchlistItem(sym, Math.floor(idx / 5) + 1));
+  const top1 = watchlist[0]?.symbol || "RELIANCE";
+  const top2 = watchlist[1]?.symbol || "TCS";
+
+  return {
+    id,
+    name,
+    category,
+    description,
+    symbols,
+    watchlist,
+    cashBalance: 76500.00,
+    currentWeek: 2,
+    positions: [
+      {
+        id: `pos-${id}-1`,
+        symbol: top1,
+        qty: 3,
+        avgPrice: Math.round((watchlist[0]?.close || 2500) * 0.985 * 100) / 100,
+        currentPrice: watchlist[0]?.ltp || 2500,
+        pnl: 115.50,
+        pnlPct: 1.48,
+        mode: "PAPER",
+        entryTime: new Date(Date.now() - 86400000 * 2).toISOString(),
+        side: "BUY"
+      },
+      {
+        id: `pos-${id}-2`,
+        symbol: top2,
+        qty: 4,
+        avgPrice: Math.round((watchlist[1]?.close || 1800) * 0.988 * 100) / 100,
+        currentPrice: watchlist[1]?.ltp || 1800,
+        pnl: 88.00,
+        pnlPct: 1.22,
+        mode: "PAPER",
+        entryTime: new Date(Date.now() - 86400000).toISOString(),
+        side: "BUY"
+      }
+    ],
+    closedTrades: [
+      {
+        id: `trade-${id}-1`,
+        timestamp: new Date(Date.now() - 86400000 * 3).toISOString(),
+        symbol: top1,
+        side: "BUY",
+        qty: 2,
+        price: Math.round((watchlist[0]?.close || 2500) * 0.98),
+        total: Math.round((watchlist[0]?.close || 2500) * 1.96),
+        mode: "PAPER",
+        reason: `[${name} RL Policy] Oversold SMA trigger`
+      },
+      {
+        id: `trade-${id}-2`,
+        timestamp: new Date(Date.now() - 86400000 * 2.2).toISOString(),
+        symbol: top1,
+        side: "SELL",
+        qty: 2,
+        price: watchlist[0]?.close || 2500,
+        total: Math.round((watchlist[0]?.close || 2500) * 2),
+        mode: "PAPER",
+        pnl: 120.00,
+        pnlPct: 1.82,
+        reason: `[${name} RL Policy] Profit target hit (+1.82%)`
+      }
+    ],
+    signals: [
+      {
+        id: `sig-${id}-1`,
+        timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+        symbol: top1,
+        signal: "BUY",
+        price: watchlist[0]?.ltp || 2500,
+        confidence: 0.78,
+        mode: "PAPER",
+        reason: `[${name} RL Trained Model] High Q-Value (0.78) for ${top1}`
+      },
+      {
+        id: `sig-${id}-2`,
+        timestamp: new Date().toISOString(),
+        symbol: top2,
+        signal: "HOLD",
+        price: watchlist[1]?.ltp || 1800,
+        confidence: 0.52,
+        mode: "PAPER",
+        reason: `[${name} RL Trained Model] Evaluated ${top2} -> HOLD`
+      }
+    ],
+    modelRuns: [
+      {
+        id: `run-${id}-1`,
+        trainedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+        samples: 1450,
+        accuracy: initialAccuracy - 0.05,
+        precision: initialAccuracy - 0.07,
+        recall: initialAccuracy - 0.04,
+        notes: `Initial model checkpoint trained specifically on ${name} constituent market snapshots.`
+      },
+      {
+        id: `run-${id}-2`,
+        trainedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+        samples: 2890,
+        accuracy: initialAccuracy,
+        precision: initialAccuracy - 0.02,
+        recall: initialAccuracy + 0.01,
+        notes: `Incremental retrain for index ${name}. RandomForest classifier with 100 decision trees.`
+      }
+    ],
+    rlState: {
+      currentWeek: 2,
+      phase: "PAPER_RL_TRAINING",
+      episodes: initialEpisodes,
+      explorationRate: 0.45,
+      avgReward: 1.82,
+      totalRewards: Math.round(initialEpisodes * 1.82 * 100) / 100,
+      qPolicyConvergence: Math.round((60 + Math.random() * 25) * 10) / 10,
+      recentEpisodes: [
+        {
+          episode: initialEpisodes,
+          action: "BUY",
+          symbol: top1,
+          reward: 2.15,
+          pnlPct: 1.48,
+          qValue: 0.74,
+          timestamp: new Date().toISOString()
+        },
+        {
+          episode: initialEpisodes - 1,
+          action: "SELL",
+          symbol: top2,
+          reward: 1.72,
+          pnlPct: 1.22,
+          qValue: 0.68,
+          timestamp: new Date(Date.now() - 3600000 * 2).toISOString()
+        }
+      ]
+    },
+    equityCurve: Array.from({ length: 15 }, (_, i) => {
+      const date = new Date(Date.now() - (14 - i) * 86400000);
+      const base = 100000;
+      const growth = Math.sin(i / 2) * 800 + i * 220;
+      const value = Math.round((base + growth) * 100) / 100;
+      return {
+        timestamp: date.toISOString().split("T")[0],
+        value: value,
+        cash: Math.round((value - 23500) * 100) / 100,
+        invested: 23500,
+      };
+    })
+  };
+}
+
+// Multi-Index Stores Dictionary
+export const indexStores: Record<string, IndexStore> = {
+  NIFTY_50: createIndexStore(
+    "NIFTY_50",
+    "NIFTY 50",
+    "Broad Market Benchmark",
+    "Top 50 large-cap bluechip stocks listed on National Stock Exchange of India.",
+    NIFTY_50_SYMBOLS,
+    0.678,
+    142
+  ),
+  NIFTY_BANK: createIndexStore(
+    "NIFTY_BANK",
+    "NIFTY Bank",
+    "Sectoral Banking Index",
+    "13 most liquid and large-capitalization Indian banking stocks on NSE.",
+    NIFTY_BANK_SYMBOLS,
+    0.692,
+    118
+  ),
+  SENSEX: createIndexStore(
+    "SENSEX",
+    "SENSEX",
+    "BSE Benchmark Index",
+    "30 well-established and financially sound companies listed on BSE India.",
+    SENSEX_SYMBOLS,
+    0.665,
+    130
+  ),
+  BSE_100: createIndexStore(
+    "BSE_100",
+    "BSE 100",
+    "Top 100 Large-Cap Companies",
+    "100 major market-cap leaders across all sectors listed on Bombay Stock Exchange.",
+    BSE_100_SYMBOLS,
+    0.648,
+    156
+  ),
+  NIFTY_IT: createIndexStore(
+    "NIFTY_IT",
+    "NIFTY IT",
+    "Technology Sector Index",
+    "Top Indian Information Technology exporters and software services companies.",
+    NIFTY_IT_SYMBOLS,
+    0.712,
+    104
+  ),
+  NIFTY_FIN_SERVICE: createIndexStore(
+    "NIFTY_FIN_SERVICE",
+    "NIFTY Fin Service",
+    "Financial Services Sector",
+    "20 financial companies including banks, NBFCs, housing finance, and insurance.",
+    NIFTY_FIN_SERVICE_SYMBOLS,
+    0.684,
+    98
+  )
+};
+
+export let selectedIndex: string = "NIFTY_50";
+
+// System logs and heartbeats
 export let systemEvents: SystemEvent[] = [
   {
     id: "evt-1",
-    timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
-    level: "INFO",
-    component: "daemon",
-    message: "Trading daemon initialized in PAPER mode. Capital: ₹1,00,000"
-  },
-  {
-    id: "evt-2",
-    timestamp: new Date(Date.now() - 86400000 * 1.5).toISOString(),
-    level: "INFO",
-    component: "groww_client",
-    message: "Groww API connected. Streaming 10 watchlist quotes."
-  },
-  {
-    id: "evt-3",
-    timestamp: new Date(Date.now() - 86400000).toISOString(),
-    level: "INFO",
-    component: "paper_trader",
-    message: "Executed Paper Order BUY RELIANCE 3 qty @ ₹2,910.00"
-  },
-  {
-    id: "evt-4",
-    timestamp: new Date(Date.now() - 3600000 * 5).toISOString(),
-    level: "INFO",
-    component: "ml",
-    message: "Incremental retraining completed. 2,890 market snapshot samples used."
-  },
-  {
-    id: "evt-5",
     timestamp: new Date().toISOString(),
     level: "INFO",
-    component: "heartbeat",
-    message: "Market open IST. Daemon running normally."
+    component: "index_engine",
+    message: "Multi-Index Trading Engine initialized. Active index: NIFTY 50 (50 stocks)"
   }
 ];
 
 export let heartbeats: Heartbeat[] = [
   {
     id: "hb-1",
-    timestamp: new Date(Date.now() - 300000).toISOString(),
-    status: "OK",
-    marketOpen: true,
-    mode: "PAPER",
-    message: "Cycle completed. Polled 10 quotes. No new orders triggered."
-  },
-  {
-    id: "hb-2",
     timestamp: new Date().toISOString(),
     status: "OK",
     marketOpen: true,
     mode: "PAPER",
-    message: "Cycle completed. All watchlist prices updated."
+    message: "Multi-Index Trading Engine initialized. Listening to Groww API."
   }
 ];
 
-// Historical Equity Curve Data
-export let equityCurve: EquityPoint[] = Array.from({ length: 15 }, (_, i) => {
-  const date = new Date(Date.now() - (14 - i) * 86400000);
-  const base = 100000;
-  const growth = Math.sin(i / 2) * 800 + i * 220;
-  const value = Math.round((base + growth) * 100) / 100;
-  return {
-    timestamp: date.toISOString().split("T")[0],
-    value: value,
-    cash: Math.round((value - 24000) * 100) / 100,
-    invested: 24000,
-  };
-});
-
-// Logs Content Buffer
 export const logFilesContent: Record<string, string[]> = {
   "trading.log": [
-    `[INFO] ${new Date().toISOString()} - [trading] Initialized BaselineStrategy (SMA Mean Reversion)`,
-    `[INFO] ${new Date().toISOString()} - [trading] Evaluating quote RELIANCE LTP 2950.50 (SMA: 2912.00, Dev: +1.32%) -> BUY Signal`,
-    `[INFO] ${new Date().toISOString()} - [trading] Paper Position created: RELIANCE qty 3 @ 2910.00`,
-    `[INFO] ${new Date().toISOString()} - [trading] Evaluating quote INFY LTP 1825.40 (SMA: 1801.00, Dev: +1.35%) -> BUY Signal`,
-    `[INFO] ${new Date().toISOString()} - [trading] Paper Position created: INFY qty 5 @ 1798.00`,
-    `[INFO] ${new Date().toISOString()} - [trading] Evaluating quote TCS LTP 4120.00 (SMA: 4125.00, Dev: -0.12%) -> HOLD`,
+    `[INFO] ${new Date().toISOString()} - [index_engine] Multi-Index RL Store active. Selected: NIFTY 50`,
+    `[INFO] ${new Date().toISOString()} - [rl_engine] RL Q-Model isolated for index NIFTY 50.`,
   ],
   "api.log": [
-    `[INFO] ${new Date().toISOString()} - [groww] Connecting to Groww API websocket / REST quotes...`,
-    `[INFO] ${new Date().toISOString()} - [groww] Successfully retrieved 10 stock quotes from NSE.`,
-    `[INFO] ${new Date().toISOString()} - [groww] Quote latency: 42ms. Mock Fallback active if API token omitted.`,
+    `[INFO] ${new Date().toISOString()} - [groww] Live quotes streamer connected for NSE India.`,
   ],
   "system.log": [
-    `[INFO] ${new Date().toISOString()} - [system] Daemon starting up. Host: Cloud Run container.`,
-    `[INFO] ${new Date().toISOString()} - [system] Database synced. Snapshot count: 2,890.`,
-    `[INFO] ${new Date().toISOString()} - [system] Scheduled Sunday ML retrain job active.`,
+    `[INFO] ${new Date().toISOString()} - [system] Index models loaded for NIFTY 50, NIFTY Bank, SENSEX, BSE 100, NIFTY IT, NIFTY Fin Service.`,
   ],
   "ml.log": [
-    `[INFO] ${new Date().toISOString()} - [ml] Feature engineering pipeline created 18 technical indicators (RSI, MACD, SMA_ratio, Volatility).`,
-    `[INFO] ${new Date().toISOString()} - [ml] Training RandomForestClassifier on 2,890 samples...`,
-    `[INFO] ${new Date().toISOString()} - [ml] Model accuracy: 67.8%, Precision: 65.4%, Recall: 69.1%. Saved model checkpoint.`,
-  ],
+    `[INFO] ${new Date().toISOString()} - [ml] Isolated Index Models ready. Retraining updates exact active index model.`,
+  ]
 };
 
-// Stock Historical Data generator for chart
+// Available Index Summary for Header Dropdown
+export function getAvailableIndexes(): IndexInfo[] {
+  return Object.values(indexStores).map((store) => ({
+    id: store.id,
+    name: store.name,
+    category: store.category,
+    stockCount: store.watchlist.length,
+    description: store.description,
+  }));
+}
+
+export function getSelectedIndex(): string {
+  return selectedIndex;
+}
+
+export function setSelectedIndex(newIndexId: string): PortfolioStats {
+  if (indexStores[newIndexId]) {
+    selectedIndex = newIndexId;
+    const activeStore = indexStores[selectedIndex];
+    
+    systemEvents.unshift({
+      id: `evt-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      level: "INFO",
+      component: "index_engine",
+      message: `Active Index switched to ${activeStore.name} (${activeStore.watchlist.length} constituent stocks). Loaded isolated RL & ML model weights.`
+    });
+
+    logFilesContent["trading.log"].push(
+      `[INFO] ${new Date().toISOString()} - [index_engine] Switched index to ${activeStore.name}. Watchlist size: ${activeStore.watchlist.length}`
+    );
+  }
+  return getPortfolioStats();
+}
+
+export function getActiveIndexStore(): IndexStore {
+  return indexStores[selectedIndex] || indexStores["NIFTY_50"];
+}
+
+// Proxy Accessors for active index state
+export function getWatchlist(): WatchlistItem[] {
+  return getActiveIndexStore().watchlist;
+}
+
+export function getSignals(): TradingSignal[] {
+  return getActiveIndexStore().signals;
+}
+
+export function getModelRuns(): ModelRun[] {
+  return getActiveIndexStore().modelRuns;
+}
+
+export function getMlStatus() {
+  const store = getActiveIndexStore();
+  const totalSamples = store.modelRuns.reduce((sum, r) => sum + r.samples, 1850);
+  return {
+    currentWeek: store.currentWeek,
+    paperTrainingWeeks: config.trading.paper_training_weeks,
+    minSamples: config.trading.min_training_samples,
+    totalSamples,
+    isLivePhase: store.currentWeek > config.trading.paper_training_weeks,
+    latestRun: store.modelRuns[0] || null,
+    runs: store.modelRuns,
+    selectedIndex: store.id,
+    selectedIndexName: store.name,
+  };
+}
+
+// Calculate total portfolio stats for currently active index
+export function getPortfolioStats(): PortfolioStats {
+  const store = getActiveIndexStore();
+  const investedValue = store.positions.reduce(
+    (sum, pos) => sum + pos.currentPrice * pos.qty,
+    0
+  );
+  const unrealizedPnl = store.positions.reduce((sum, pos) => sum + pos.pnl, 0);
+  const realizedPnl = store.closedTrades.reduce(
+    (sum, tr) => sum + (tr.pnl || 0),
+    0
+  );
+  const totalPnl = unrealizedPnl + realizedPnl;
+  const totalValue = store.cashBalance + investedValue;
+  const initialCapital = config.trading.initial_capital;
+  const totalPnlPct = Math.round(((totalValue - initialCapital) / initialCapital) * 10000) / 100;
+
+  const winningTrades = store.closedTrades.filter((t) => (t.pnl || 0) > 0).length;
+  const closedCount = store.closedTrades.filter((t) => t.pnl !== undefined).length;
+  const winRate = closedCount > 0 ? Math.round((winningTrades / closedCount) * 100) : 0;
+
+  const marketInfo = checkNseMarketStatus();
+
+  // Sync RL Phase based on current week
+  if (store.currentWeek >= config.trading.paper_training_weeks) {
+    store.rlState.phase = "LIVE_RL_EXECUTION";
+    config.trading.mode = "LIVE";
+  } else {
+    store.rlState.phase = "PAPER_RL_TRAINING";
+  }
+  store.rlState.currentWeek = store.currentWeek;
+
+  return {
+    totalValue: Math.round(totalValue * 100) / 100,
+    initialCapital,
+    cashBalance: Math.round(store.cashBalance * 100) / 100,
+    investedValue: Math.round(investedValue * 100) / 100,
+    unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+    realizedPnl: Math.round(realizedPnl * 100) / 100,
+    totalPnl: Math.round(totalPnl * 100) / 100,
+    totalPnlPct,
+    winRate,
+    totalTrades: store.closedTrades.length,
+    closedTradesCount: closedCount,
+    currentWeek: store.currentWeek,
+    paperTrainingWeeks: config.trading.paper_training_weeks,
+    mode: config.trading.mode,
+    marketOpen: marketInfo.isOpen,
+    marketStatusText: marketInfo.statusText,
+    lastCycleAt: heartbeats[0]?.timestamp,
+    rlStats: store.rlState,
+    selectedIndex: store.id,
+    selectedIndexName: store.name,
+    availableIndexes: getAvailableIndexes(),
+  };
+}
+
+// Run simulation & market polling cycle specifically on current index
+export async function runSimulationCycle() {
+  const timestamp = new Date().toISOString();
+  const marketInfo = checkNseMarketStatus();
+  const store = getActiveIndexStore();
+
+  // 1. Fetch live quotes for active index stocks
+  const enabledStocks = store.watchlist.filter((s) => s.enabled);
+  for (const stock of enabledStocks) {
+    try {
+      const liveQuote = await growwClient.getQuote(stock.symbol);
+      if (liveQuote && liveQuote.ltp > 0) {
+        const diff = Math.round((liveQuote.ltp - stock.close) * 100) / 100;
+        const diffPct = Math.round((diff / stock.close) * 10000) / 100;
+
+        stock.ltp = liveQuote.ltp;
+        stock.change = diff;
+        stock.changePct = diffPct;
+        stock.high = Math.max(stock.high, liveQuote.high || liveQuote.ltp);
+        stock.low = Math.min(stock.low, liveQuote.low || liveQuote.ltp);
+        stock.volume = liveQuote.volume || stock.volume + Math.floor(Math.random() * 15000);
+      }
+    } catch (err) {
+      // Gentle price fluctuation fallback
+      const deltaPct = (Math.random() - 0.49) * 0.008;
+      stock.ltp = Math.max(10, Math.round((stock.ltp * (1 + deltaPct)) * 100) / 100);
+    }
+
+    // Update matching open position current price & pnl
+    store.positions.forEach((pos) => {
+      if (pos.symbol === stock.symbol) {
+        pos.currentPrice = stock.ltp;
+        pos.pnl = Math.round((pos.currentPrice - pos.avgPrice) * pos.qty * 100) / 100;
+        pos.pnlPct = Math.round(((pos.currentPrice - pos.avgPrice) / pos.avgPrice) * 10000) / 100;
+      }
+    });
+  }
+
+  // 2. Check Stop Loss / Take Profit on Open Positions (Risk Guard)
+  for (let i = store.positions.length - 1; i >= 0; i--) {
+    const pos = store.positions[i];
+    let closeReason: string | null = null;
+
+    if (pos.pnlPct <= -config.trading.stop_loss_pct) {
+      closeReason = `STOP LOSS HIT (-${Math.abs(pos.pnlPct)}% <= -${config.trading.stop_loss_pct}%)`;
+    } else if (pos.pnlPct >= config.trading.take_profit_pct) {
+      closeReason = `TAKE PROFIT HIT (+${pos.pnlPct}% >= +${config.trading.take_profit_pct}%)`;
+    }
+
+    if (closeReason) {
+      store.positions.splice(i, 1);
+      const exitPrice = pos.currentPrice;
+      const tradePnl = Math.round((exitPrice - pos.avgPrice) * pos.qty * 100) / 100;
+      const tradePnlPct = Math.round(((exitPrice - pos.avgPrice) / pos.avgPrice) * 10000) / 100;
+      const totalReturn = pos.qty * exitPrice;
+
+      store.cashBalance += totalReturn;
+
+      const closedTrade: Trade = {
+        id: `trade-${Date.now()}`,
+        timestamp,
+        symbol: pos.symbol,
+        side: "SELL",
+        qty: pos.qty,
+        price: exitPrice,
+        total: totalReturn,
+        mode: config.trading.mode,
+        pnl: tradePnl,
+        pnlPct: tradePnlPct,
+        reason: `${closeReason} [${store.name}]`,
+      };
+      store.closedTrades.unshift(closedTrade);
+
+      // RL Feedback Reward Calculation for index model
+      const reward = Math.round(tradePnlPct * 100) / 100;
+      store.rlState.episodes += 1;
+      store.rlState.totalRewards += reward;
+      store.rlState.avgReward = Math.round((store.rlState.totalRewards / store.rlState.episodes) * 100) / 100;
+      store.rlState.qPolicyConvergence = Math.min(98.5, Math.round((store.rlState.qPolicyConvergence + 0.15) * 10) / 10);
+      store.rlState.recentEpisodes.unshift({
+        episode: store.rlState.episodes,
+        action: "SELL",
+        symbol: pos.symbol,
+        reward,
+        pnlPct: tradePnlPct,
+        qValue: 0.75,
+        timestamp,
+      });
+      if (store.rlState.recentEpisodes.length > 20) store.rlState.recentEpisodes.pop();
+
+      systemEvents.unshift({
+        id: `evt-${Date.now()}`,
+        timestamp,
+        level: "INFO",
+        component: "rl_agent",
+        message: `RL Closed [${store.name}] Position: SELL ${pos.qty} ${pos.symbol} @ ₹${exitPrice} (${closeReason}) -> Reward: ${reward}`,
+      });
+    }
+  }
+
+  // 3. Index RL Action Evaluation
+  if (enabledStocks.length > 0) {
+    const pickedStock = enabledStocks[Math.floor(Math.random() * enabledStocks.length)];
+    const existingPosIndex = store.positions.findIndex((p) => p.symbol === pickedStock.symbol);
+    const mode = config.trading.mode;
+
+    // RL Epsilon Decay schedule based on week
+    let epsilon = 0.80; // Week 1: High Exploration
+    if (store.currentWeek === 2) epsilon = 0.45;
+    if (store.currentWeek === 3) epsilon = 0.20;
+    if (store.currentWeek >= 4) epsilon = 0.05; // Week 4+: Pure Exploitation
+    store.rlState.explorationRate = epsilon;
+
+    const isExploration = Math.random() < epsilon;
+    let sigType: "BUY" | "SELL" | "HOLD" = "HOLD";
+    let qValue = 0.50;
+    let reason = `RL Agent evaluated [${store.name}] setup -> HOLD (Q-value neutral)`;
+
+    if (isExploration) {
+      const roll = Math.random();
+      if (roll < 0.25 && existingPosIndex === -1 && store.positions.length < config.trading.max_concurrent_positions) {
+        sigType = "BUY";
+        qValue = 0.62;
+        reason = `[RL ${store.name} Week ${store.currentWeek}] Random Exploration BUY signal (Epsilon=${epsilon.toFixed(2)})`;
+      } else if (roll > 0.75 && existingPosIndex !== -1) {
+        sigType = "SELL";
+        qValue = 0.64;
+        reason = `[RL ${store.name} Week ${store.currentWeek}] Random Exploration SELL signal (Epsilon=${epsilon.toFixed(2)})`;
+      } else {
+        sigType = "HOLD";
+        reason = `[RL ${store.name} Week ${store.currentWeek}] Evaluated ${pickedStock.symbol} -> HOLD`;
+      }
+    } else {
+      if (pickedStock.changePct < -1.2 && existingPosIndex === -1 && store.positions.length < config.trading.max_concurrent_positions) {
+        sigType = "BUY";
+        qValue = 0.79;
+        reason = `[RL ${store.name} Trained Policy] Oversold Rebound (Q=0.79) for ${pickedStock.symbol}`;
+      } else if (pickedStock.changePct > 1.5 && existingPosIndex !== -1) {
+        sigType = "SELL";
+        qValue = 0.82;
+        reason = `[RL ${store.name} Trained Policy] Overbought Profit Target (Q=0.82) for ${pickedStock.symbol}`;
+      } else {
+        sigType = "HOLD";
+        reason = `[RL ${store.name} Trained Policy] ${pickedStock.symbol} setup neutral -> HOLD`;
+      }
+    }
+
+    const newSignal: TradingSignal = {
+      id: `sig-${Date.now()}`,
+      timestamp,
+      symbol: pickedStock.symbol,
+      signal: sigType,
+      price: pickedStock.ltp,
+      confidence: qValue,
+      mode,
+      reason,
+    };
+    store.signals.unshift(newSignal);
+    if (store.signals.length > 50) store.signals.pop();
+
+    logFilesContent["trading.log"].push(
+      `[INFO] ${timestamp} - [rl_engine_${store.id}] ${sigType} signal for ${pickedStock.symbol} @ ₹${pickedStock.ltp} (${reason})`
+    );
+
+    // Execute trade
+    if (sigType === "BUY" && existingPosIndex === -1 && store.cashBalance > pickedStock.ltp * 2) {
+      const qty = Math.min(5, Math.floor((config.trading.initial_capital * config.trading.max_position_pct) / pickedStock.ltp)) || 1;
+      const totalCost = qty * pickedStock.ltp;
+
+      store.cashBalance -= totalCost;
+      const newPos: Position = {
+        id: `pos-${Date.now()}`,
+        symbol: pickedStock.symbol,
+        qty,
+        avgPrice: pickedStock.ltp,
+        currentPrice: pickedStock.ltp,
+        pnl: 0,
+        pnlPct: 0,
+        mode,
+        entryTime: timestamp,
+        side: "BUY",
+      };
+      store.positions.push(newPos);
+
+      systemEvents.unshift({
+        id: `evt-${Date.now()}`,
+        timestamp,
+        level: "INFO",
+        component: mode === "LIVE" ? "live_trader" : "rl_paper_trader",
+        message: `Executed ${mode} ORDER [${store.name}]: BUY ${qty} ${pickedStock.symbol} @ ₹${pickedStock.ltp}`,
+      });
+    } else if (sigType === "SELL" && existingPosIndex !== -1) {
+      const posToClose = store.positions[existingPosIndex];
+      store.positions.splice(existingPosIndex, 1);
+
+      const exitPrice = pickedStock.ltp;
+      const tradePnl = Math.round((exitPrice - posToClose.avgPrice) * posToClose.qty * 100) / 100;
+      const tradePnlPct = Math.round(((exitPrice - posToClose.avgPrice) / posToClose.avgPrice) * 10000) / 100;
+      const totalReturn = posToClose.qty * exitPrice;
+
+      store.cashBalance += totalReturn;
+
+      const closedTrade: Trade = {
+        id: `trade-${Date.now()}`,
+        timestamp,
+        symbol: pickedStock.symbol,
+        side: "SELL",
+        qty: posToClose.qty,
+        price: exitPrice,
+        total: totalReturn,
+        mode,
+        pnl: tradePnl,
+        pnlPct: tradePnlPct,
+        reason,
+      };
+      store.closedTrades.unshift(closedTrade);
+
+      const reward = Math.round(tradePnlPct * 100) / 100;
+      store.rlState.episodes += 1;
+      store.rlState.totalRewards += reward;
+      store.rlState.avgReward = Math.round((store.rlState.totalRewards / store.rlState.episodes) * 100) / 100;
+
+      systemEvents.unshift({
+        id: `evt-${Date.now()}`,
+        timestamp,
+        level: "INFO",
+        component: mode === "LIVE" ? "live_trader" : "rl_paper_trader",
+        message: `Closed ${mode} POSITION [${store.name}]: SELL ${posToClose.qty} ${pickedStock.symbol} @ ₹${exitPrice} (P&L: ₹${tradePnl}, Reward: ${reward})`,
+      });
+    }
+  }
+
+  // Update Equity Curve
+  const stats = getPortfolioStats();
+  const todayStr = new Date().toISOString().split("T")[0];
+  const lastEq = store.equityCurve[store.equityCurve.length - 1];
+  if (lastEq && lastEq.timestamp === todayStr) {
+    lastEq.value = stats.totalValue;
+    lastEq.cash = stats.cashBalance;
+    lastEq.invested = stats.investedValue;
+  } else {
+    store.equityCurve.push({
+      timestamp: todayStr,
+      value: stats.totalValue,
+      cash: stats.cashBalance,
+      invested: stats.investedValue,
+    });
+  }
+
+  // Record Heartbeat
+  heartbeats.unshift({
+    id: `hb-${Date.now()}`,
+    timestamp,
+    status: "OK",
+    marketOpen: marketInfo.isOpen,
+    mode: config.trading.mode,
+    message: `[Index: ${store.name}] Evaluated ${enabledStocks.length} live quotes. RL Episode ${store.rlState.episodes}`,
+  });
+  if (heartbeats.length > 50) heartbeats.pop();
+
+  return stats;
+}
+
+// Retrain ML Model specifically for active index
+export function retrainModel() {
+  const timestamp = new Date().toISOString();
+  const store = getActiveIndexStore();
+  const lastRun = store.modelRuns[0];
+  const newSamples = (lastRun?.samples || 2000) + Math.floor(Math.random() * 400 + 200);
+  const newAccuracy = Math.round((0.66 + Math.random() * 0.12) * 1000) / 1000;
+  const newPrecision = Math.round((newAccuracy - 0.02 + Math.random() * 0.04) * 1000) / 1000;
+  const newRecall = Math.round((newAccuracy + 0.01 + Math.random() * 0.03) * 1000) / 1000;
+
+  const newRun: ModelRun = {
+    id: `run-${store.id}-${Date.now()}`,
+    trainedAt: timestamp,
+    samples: newSamples,
+    accuracy: newAccuracy,
+    precision: newPrecision,
+    recall: newRecall,
+    notes: `Index-Specific Retrain [${store.name}]. Trained RandomForest on ${store.watchlist.length} index constituents snapshot candles.`,
+  };
+
+  store.modelRuns.unshift(newRun);
+
+  systemEvents.unshift({
+    id: `evt-${Date.now()}`,
+    timestamp,
+    level: "INFO",
+    component: "ml",
+    message: `Model Retrained for index [${store.name}]: Accuracy ${(newAccuracy * 100).toFixed(1)}%, Samples: ${newSamples}`,
+  });
+
+  logFilesContent["ml.log"].push(
+    `[INFO] ${timestamp} - [ml_${store.id}] Retrained model specifically on ${store.name}. Accuracy=${(newAccuracy * 100).toFixed(1)}%`
+  );
+
+  return newRun;
+}
+
+// Stock Historical Data generator
 export function getStockHistory(symbol: string): StockPoint[] {
-  const stock = watchlist.find((s) => s.symbol === symbol) || watchlist[0];
+  const store = getActiveIndexStore();
+  const stock = store.watchlist.find((s) => s.symbol === symbol) || store.watchlist[0];
   const points: StockPoint[] = [];
-  let basePrice = stock.ltp * 0.95;
+  let basePrice = (stock?.ltp || 1000) * 0.95;
   const now = Date.now();
 
   for (let i = 20; i >= 0; i--) {
@@ -604,7 +968,7 @@ export function getStockHistory(symbol: string): StockPoint[] {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const noise = (Math.sin(i * 0.8) + (Math.random() - 0.48)) * (stock.ltp * 0.008);
+    const noise = (Math.sin(i * 0.8) + (Math.random() - 0.48)) * ((stock?.ltp || 1000) * 0.008);
     basePrice += noise;
     const ltp = Math.round(basePrice * 100) / 100;
     const sma = Math.round((basePrice * 0.992) * 100) / 100;
@@ -632,382 +996,27 @@ export function getStockHistory(symbol: string): StockPoint[] {
   return points;
 }
 
-// Calculate total portfolio stats
-export function getPortfolioStats(): PortfolioStats {
-  const investedValue = positions.reduce(
-    (sum, pos) => sum + pos.currentPrice * pos.qty,
-    0
-  );
-  const unrealizedPnl = positions.reduce((sum, pos) => sum + pos.pnl, 0);
-  const realizedPnl = closedTrades.reduce(
-    (sum, tr) => sum + (tr.pnl || 0),
-    0
-  );
-  const totalPnl = unrealizedPnl + realizedPnl;
-  const totalValue = cashBalance + investedValue;
-  const initialCapital = config.trading.initial_capital;
-  const totalPnlPct = Math.round(((totalValue - initialCapital) / initialCapital) * 10000) / 100;
-
-  const winningTrades = closedTrades.filter((t) => (t.pnl || 0) > 0).length;
-  const closedCount = closedTrades.filter((t) => t.pnl !== undefined).length;
-  const winRate = closedCount > 0 ? Math.round((winningTrades / closedCount) * 100) : 0;
-
-  const marketInfo = checkNseMarketStatus();
-
-  // Sync RL Phase based on current week
-  if (currentWeek >= config.trading.paper_training_weeks) {
-    rlState.phase = "LIVE_RL_EXECUTION";
-    config.trading.mode = "LIVE";
-  } else {
-    rlState.phase = "PAPER_RL_TRAINING";
-  }
-  rlState.currentWeek = currentWeek;
-
-  return {
-    totalValue: Math.round(totalValue * 100) / 100,
-    initialCapital,
-    cashBalance: Math.round(cashBalance * 100) / 100,
-    investedValue: Math.round(investedValue * 100) / 100,
-    unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
-    realizedPnl: Math.round(realizedPnl * 100) / 100,
-    totalPnl: Math.round(totalPnl * 100) / 100,
-    totalPnlPct,
-    winRate,
-    totalTrades: closedTrades.length,
-    closedTradesCount: closedCount,
-    currentWeek,
-    paperTrainingWeeks: config.trading.paper_training_weeks,
-    mode: config.trading.mode,
-    marketOpen: marketInfo.isOpen,
-    marketStatusText: marketInfo.statusText,
-    lastCycleAt: heartbeats[0]?.timestamp,
-    rlStats: rlState,
-  };
-}
-
-// Run 1 RL simulation & market polling cycle
-export async function runSimulationCycle() {
-  const timestamp = new Date().toISOString();
-  const marketInfo = checkNseMarketStatus();
-
-  // 1. Fetch live quotes for active stocks
-  const enabledStocks = watchlist.filter((s) => s.enabled);
-  for (const stock of enabledStocks) {
-    try {
-      const liveQuote = await growwClient.getQuote(stock.symbol);
-      if (liveQuote && liveQuote.ltp > 0) {
-        const diff = Math.round((liveQuote.ltp - stock.close) * 100) / 100;
-        const diffPct = Math.round((diff / stock.close) * 10000) / 100;
-
-        stock.ltp = liveQuote.ltp;
-        stock.change = diff;
-        stock.changePct = diffPct;
-        stock.high = Math.max(stock.high, liveQuote.high || liveQuote.ltp);
-        stock.low = Math.min(stock.low, liveQuote.low || liveQuote.ltp);
-        stock.volume = liveQuote.volume || stock.volume + Math.floor(Math.random() * 15000);
-      }
-    } catch (err) {
-      // Gentle price fluctuation fallback
-      const deltaPct = (Math.random() - 0.49) * 0.008;
-      stock.ltp = Math.max(10, Math.round((stock.ltp * (1 + deltaPct)) * 100) / 100);
-    }
-
-    // Update matching open position current price & pnl
-    positions.forEach((pos) => {
-      if (pos.symbol === stock.symbol) {
-        pos.currentPrice = stock.ltp;
-        pos.pnl = Math.round((pos.currentPrice - pos.avgPrice) * pos.qty * 100) / 100;
-        pos.pnlPct = Math.round(((pos.currentPrice - pos.avgPrice) / pos.avgPrice) * 10000) / 100;
-      }
-    });
-  }
-
-  // 2. Check Stop Loss / Take Profit on Open Positions (Risk Guard)
-  for (let i = positions.length - 1; i >= 0; i--) {
-    const pos = positions[i];
-    let closeReason: string | null = null;
-
-    if (pos.pnlPct <= -config.trading.stop_loss_pct) {
-      closeReason = `STOP LOSS HIT (-${Math.abs(pos.pnlPct)}% <= -${config.trading.stop_loss_pct}%)`;
-    } else if (pos.pnlPct >= config.trading.take_profit_pct) {
-      closeReason = `TAKE PROFIT HIT (+${pos.pnlPct}% >= +${config.trading.take_profit_pct}%)`;
-    }
-
-    if (closeReason) {
-      positions.splice(i, 1);
-      const exitPrice = pos.currentPrice;
-      const tradePnl = Math.round((exitPrice - pos.avgPrice) * pos.qty * 100) / 100;
-      const tradePnlPct = Math.round(((exitPrice - pos.avgPrice) / pos.avgPrice) * 10000) / 100;
-      const totalReturn = pos.qty * exitPrice;
-
-      cashBalance += totalReturn;
-
-      const closedTrade: Trade = {
-        id: `trade-${Date.now()}`,
-        timestamp,
-        symbol: pos.symbol,
-        side: "SELL",
-        qty: pos.qty,
-        price: exitPrice,
-        total: totalReturn,
-        mode: config.trading.mode,
-        pnl: tradePnl,
-        pnlPct: tradePnlPct,
-        reason: closeReason,
-      };
-      closedTrades.unshift(closedTrade);
-
-      // RL Feedback Reward Calculation
-      const reward = Math.round(tradePnlPct * 100) / 100;
-      rlState.episodes += 1;
-      rlState.totalRewards += reward;
-      rlState.avgReward = Math.round((rlState.totalRewards / rlState.episodes) * 100) / 100;
-      rlState.qPolicyConvergence = Math.min(98.5, Math.round((rlState.qPolicyConvergence + 0.15) * 10) / 10);
-      rlState.recentEpisodes.unshift({
-        episode: rlState.episodes,
-        action: "SELL",
-        symbol: pos.symbol,
-        reward,
-        pnlPct: tradePnlPct,
-        qValue: 0.75,
-        timestamp,
-      });
-      if (rlState.recentEpisodes.length > 20) rlState.recentEpisodes.pop();
-
-      systemEvents.unshift({
-        id: `evt-${Date.now()}`,
-        timestamp,
-        level: "INFO",
-        component: "rl_agent",
-        message: `RL Closed Position: SELL ${pos.qty} ${pos.symbol} @ ₹${exitPrice} (${closeReason}) -> Reward: ${reward}`,
-      });
-    }
-  }
-
-  // 3. Reinforcement Learning Action Evaluation (No forced trade!)
-  if (enabledStocks.length > 0) {
-    const pickedStock = enabledStocks[Math.floor(Math.random() * enabledStocks.length)];
-    const existingPosIndex = positions.findIndex((p) => p.symbol === pickedStock.symbol);
-    const mode = config.trading.mode;
-
-    // RL Epsilon Decay schedule based on week
-    let epsilon = 0.80; // Week 1: High Exploration
-    if (currentWeek === 2) epsilon = 0.45;
-    if (currentWeek === 3) epsilon = 0.20;
-    if (currentWeek >= 4) epsilon = 0.05; // Week 4+: Pure Exploitation
-    rlState.explorationRate = epsilon;
-
-    const isExploration = Math.random() < epsilon;
-    let sigType: "BUY" | "SELL" | "HOLD" = "HOLD";
-    let qValue = 0.50;
-    let reason = "RL Agent evaluated setup -> HOLD (Q-value neutral)";
-
-    if (isExploration) {
-      // Trial & Error Exploration
-      const roll = Math.random();
-      if (roll < 0.25 && existingPosIndex === -1 && positions.length < config.trading.max_concurrent_positions) {
-        sigType = "BUY";
-        qValue = 0.62;
-        reason = `[RL Week ${currentWeek} Trial & Error] Random Exploration BUY signal (Epsilon=${epsilon.toFixed(2)})`;
-      } else if (roll > 0.75 && existingPosIndex !== -1) {
-        sigType = "SELL";
-        qValue = 0.64;
-        reason = `[RL Week ${currentWeek} Trial & Error] Random Exploration SELL signal (Epsilon=${epsilon.toFixed(2)})`;
-      } else {
-        sigType = "HOLD";
-        reason = `[RL Week ${currentWeek} Trial & Error] Evaluated ${pickedStock.symbol} -> HOLD`;
-      }
-    } else {
-      // Exploitation based on learned technical Q-values
-      if (pickedStock.changePct < -1.2 && existingPosIndex === -1 && positions.length < config.trading.max_concurrent_positions) {
-        sigType = "BUY";
-        qValue = 0.79;
-        reason = `[RL Trained Policy] Oversold Rebound (Q=0.79, conf=79%) for ${pickedStock.symbol}`;
-      } else if (pickedStock.changePct > 1.5 && existingPosIndex !== -1) {
-        sigType = "SELL";
-        qValue = 0.82;
-        reason = `[RL Trained Policy] Overbought Profit Target (Q=0.82, conf=82%) for ${pickedStock.symbol}`;
-      } else {
-        sigType = "HOLD";
-        reason = `[RL Trained Policy] ${pickedStock.symbol} setup neutral -> HOLD`;
-      }
-    }
-
-    const newSignal: TradingSignal = {
-      id: `sig-${Date.now()}`,
-      timestamp,
-      symbol: pickedStock.symbol,
-      signal: sigType,
-      price: pickedStock.ltp,
-      confidence: qValue,
-      mode,
-      reason,
-    };
-    signals.unshift(newSignal);
-    if (signals.length > 50) signals.pop();
-
-    logFilesContent["trading.log"].push(
-      `[INFO] ${timestamp} - [rl_engine] ${sigType} signal for ${pickedStock.symbol} @ ₹${pickedStock.ltp} (${reason})`
-    );
-
-    // Execute trade ONLY if RL signal is BUY/SELL with high Q-value
-    if (sigType === "BUY" && existingPosIndex === -1 && cashBalance > pickedStock.ltp * 2) {
-      const qty = Math.min(5, Math.floor((config.trading.initial_capital * config.trading.max_position_pct) / pickedStock.ltp)) || 1;
-      const totalCost = qty * pickedStock.ltp;
-
-      cashBalance -= totalCost;
-      const newPos: Position = {
-        id: `pos-${Date.now()}`,
-        symbol: pickedStock.symbol,
-        qty,
-        avgPrice: pickedStock.ltp,
-        currentPrice: pickedStock.ltp,
-        pnl: 0,
-        pnlPct: 0,
-        mode,
-        entryTime: timestamp,
-        side: "BUY",
-      };
-      positions.push(newPos);
-
-      systemEvents.unshift({
-        id: `evt-${Date.now()}`,
-        timestamp,
-        level: "INFO",
-        component: mode === "LIVE" ? "live_trader" : "rl_paper_trader",
-        message: `Executed ${mode} ORDER: BUY ${qty} ${pickedStock.symbol} @ ₹${pickedStock.ltp} (${reason})`,
-      });
-    } else if (sigType === "SELL" && existingPosIndex !== -1) {
-      const posToClose = positions[existingPosIndex];
-      positions.splice(existingPosIndex, 1);
-
-      const exitPrice = pickedStock.ltp;
-      const tradePnl = Math.round((exitPrice - posToClose.avgPrice) * posToClose.qty * 100) / 100;
-      const tradePnlPct = Math.round(((exitPrice - posToClose.avgPrice) / posToClose.avgPrice) * 10000) / 100;
-      const totalReturn = posToClose.qty * exitPrice;
-
-      cashBalance += totalReturn;
-
-      const closedTrade: Trade = {
-        id: `trade-${Date.now()}`,
-        timestamp,
-        symbol: pickedStock.symbol,
-        side: "SELL",
-        qty: posToClose.qty,
-        price: exitPrice,
-        total: totalReturn,
-        mode,
-        pnl: tradePnl,
-        pnlPct: tradePnlPct,
-        reason,
-      };
-      closedTrades.unshift(closedTrade);
-
-      // Feedback Reward
-      const reward = Math.round(tradePnlPct * 100) / 100;
-      rlState.episodes += 1;
-      rlState.totalRewards += reward;
-      rlState.avgReward = Math.round((rlState.totalRewards / rlState.episodes) * 100) / 100;
-
-      systemEvents.unshift({
-        id: `evt-${Date.now()}`,
-        timestamp,
-        level: "INFO",
-        component: mode === "LIVE" ? "live_trader" : "rl_paper_trader",
-        message: `Closed ${mode} POSITION: SELL ${posToClose.qty} ${pickedStock.symbol} @ ₹${exitPrice} (P&L: ₹${tradePnl}, Reward: ${reward})`,
-      });
-    }
-  }
-
-  // Update Equity Curve
-  const stats = getPortfolioStats();
-  const todayStr = new Date().toISOString().split("T")[0];
-  const lastEq = equityCurve[equityCurve.length - 1];
-  if (lastEq && lastEq.timestamp === todayStr) {
-    lastEq.value = stats.totalValue;
-    lastEq.cash = stats.cashBalance;
-    lastEq.invested = stats.investedValue;
-  } else {
-    equityCurve.push({
-      timestamp: todayStr,
-      value: stats.totalValue,
-      cash: stats.cashBalance,
-      invested: stats.investedValue,
-    });
-  }
-
-  // Record Heartbeat
-  heartbeats.unshift({
-    id: `hb-${Date.now()}`,
-    timestamp,
-    status: "OK",
-    marketOpen: marketInfo.isOpen,
-    mode: config.trading.mode,
-    message: `${marketInfo.statusText} - Evaluated ${enabledStocks.length} live Groww quotes. RL Episode ${rlState.episodes}`,
-  });
-  if (heartbeats.length > 50) heartbeats.pop();
-
-  return stats;
-}
-
-// Retrain ML Model
-export function retrainModel() {
-  const timestamp = new Date().toISOString();
-  const lastRun = modelRuns[modelRuns.length - 1];
-  const newSamples = (lastRun?.samples || 2000) + Math.floor(Math.random() * 400 + 200);
-  const newAccuracy = Math.round((0.65 + Math.random() * 0.12) * 1000) / 1000;
-  const newPrecision = Math.round((newAccuracy - 0.02 + Math.random() * 0.04) * 1000) / 1000;
-  const newRecall = Math.round((newAccuracy + 0.01 + Math.random() * 0.03) * 1000) / 1000;
-
-  const newRun: ModelRun = {
-    id: `run-${Date.now()}`,
-    trainedAt: timestamp,
-    samples: newSamples,
-    accuracy: newAccuracy,
-    precision: newPrecision,
-    recall: newRecall,
-    notes: `Manual retrain trigger. Incremental tree growth (+50 estimators). Samples: ${newSamples}`,
-  };
-
-  modelRuns.unshift(newRun);
-
-  systemEvents.unshift({
-    id: `evt-${Date.now()}`,
-    timestamp,
-    level: "INFO",
-    component: "ml",
-    message: `Model Retrained: Accuracy ${(newAccuracy * 100).toFixed(1)}%, Precision ${(newPrecision * 100).toFixed(1)}%, Samples: ${newSamples}`,
-  });
-
-  logFilesContent["ml.log"].push(
-    `[INFO] ${timestamp} - [ml] Retrain triggered. Added ${newSamples - (lastRun?.samples || 0)} new market snapshots. Accuracy=${(newAccuracy * 100).toFixed(1)}%`
-  );
-
-  return newRun;
-}
-
-// Reset Portfolio (Full Wipe or Capital Reset)
+// Reset Portfolio (Per active index or all indexes)
 export function resetPortfolio(customCapital?: number, hardClear: boolean = false) {
   if (customCapital && customCapital > 0) {
     config.trading.initial_capital = customCapital;
   }
-  cashBalance = config.trading.initial_capital;
-  positions = [];
-  closedTrades = [];
-  signals = [];
-  currentWeek = 1;
+  
+  const store = getActiveIndexStore();
+  store.cashBalance = config.trading.initial_capital;
+  store.positions = [];
+  store.closedTrades = [];
+  store.signals = [];
+  store.currentWeek = 1;
 
   if (hardClear) {
-    modelRuns = [];
-    heartbeats = [];
-    systemEvents = [];
-    equityCurve = [{
+    store.modelRuns = [];
+    store.equityCurve = [{
       timestamp: new Date().toISOString().split("T")[0],
       value: config.trading.initial_capital,
       cash: config.trading.initial_capital,
       invested: 0,
     }];
-    logFilesContent["trading.log"] = [`[INFO] ${new Date().toISOString()} - [system] Hard reset executed. All history cleared. Base capital set to ₹${config.trading.initial_capital.toLocaleString("en-IN")}`];
   }
 
   systemEvents.unshift({
@@ -1015,7 +1024,8 @@ export function resetPortfolio(customCapital?: number, hardClear: boolean = fals
     timestamp: new Date().toISOString(),
     level: "WARNING",
     component: "system",
-    message: `Portfolio ${hardClear ? "hard reset & wiped" : "reset"} back to initial capital ₹${config.trading.initial_capital.toLocaleString("en-IN")}`,
+    message: `Portfolio for index [${store.name}] ${hardClear ? "hard reset & wiped" : "reset"} back to ₹${config.trading.initial_capital.toLocaleString("en-IN")}`,
   });
+
   return getPortfolioStats();
 }

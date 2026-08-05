@@ -174,9 +174,9 @@ WantedBy=multi-user.target`;
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 sm:space-y-4">
       {/* Groww API Credentials Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">

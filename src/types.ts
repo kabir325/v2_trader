@@ -102,6 +102,14 @@ export interface RLStats {
   }[];
 }
 
+export interface IndexInfo {
+  id: string;
+  name: string;
+  category: string;
+  stockCount: number;
+  description: string;
+}
+
 export interface PortfolioStats {
   totalValue: number;
   initialCapital: number;
@@ -121,6 +129,9 @@ export interface PortfolioStats {
   marketStatusText?: string;
   lastCycleAt?: string;
   rlStats?: RLStats;
+  selectedIndex?: string;
+  selectedIndexName?: string;
+  availableIndexes?: IndexInfo[];
 }
 
 export interface EquityPoint {

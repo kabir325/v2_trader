@@ -15,9 +15,9 @@ export const PositionsTab: React.FC<PositionsTabProps> = ({
   onRunCycle,
 }) => {
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 sm:space-y-4">
       {/* Active Open Positions Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">

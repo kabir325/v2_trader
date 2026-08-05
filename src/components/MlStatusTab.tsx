@@ -28,9 +28,15 @@ export const MlStatusTab: React.FC<MlStatusTabProps> = ({
   const latest = mlStatus?.latestRun;
   const indexName = mlStatus?.selectedIndexName || "NIFTY 50";
 
-  const accPercent = latest?.accuracy ? (latest.accuracy * 100).toFixed(1) : "—";
-  const precPercent = latest?.precision ? (latest.precision * 100).toFixed(1) : "—";
-  const recPercent = latest?.recall ? (latest.recall * 100).toFixed(1) : "—";
+  const formatPct = (val?: number) => {
+    if (val === undefined || val === null) return "—";
+    const num = val <= 1.0 ? val * 100 : val;
+    return num.toFixed(1);
+  };
+
+  const accPercent = formatPct(latest?.accuracy);
+  const precPercent = formatPct(latest?.precision);
+  const recPercent = formatPct(latest?.recall);
 
   return (
     <div className="space-y-3.5 sm:space-y-4">
@@ -128,16 +134,21 @@ export const MlStatusTab: React.FC<MlStatusTabProps> = ({
                     </td>
                     <td className="py-3 px-4 text-right font-medium">{r.samples.toLocaleString("en-IN")}</td>
                     <td className="py-3 px-4 text-right font-bold text-emerald-400">
-                      {(r.accuracy * 100).toFixed(1)}%
+                      {formatPct(r.accuracy)}%
                     </td>
                     <td className="py-3 px-4 text-right text-slate-300">
-                      {(r.precision * 100).toFixed(1)}%
+                      {formatPct(r.precision)}%
                     </td>
                     <td className="py-3 px-4 text-right text-slate-300">
-                      {(r.recall * 100).toFixed(1)}%
+                      {formatPct(r.recall)}%
                     </td>
-                    <td className="py-3 px-4 text-slate-400 italic max-w-xs truncate">
-                      {r.notes}
+                    <td className="py-3 px-4 text-slate-400 max-w-xs space-y-1">
+                      <div className="italic truncate text-[11px]">{r.notes}</div>
+                      {r.modelFile && (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono border border-indigo-500/30">
+                          💾 {r.modelFile}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

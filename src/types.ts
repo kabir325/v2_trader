@@ -64,6 +64,8 @@ export interface ModelRun {
   precision: number;
   recall: number;
   notes: string;
+  modelFile?: string;
+  algorithm?: string;
 }
 
 export interface SystemEvent {
@@ -258,6 +260,7 @@ export interface HistoricalTrainResult {
   };
   candlesWithSignals: HistoricalCandleData[];
   trainedAt: string;
+  modelFile?: string;
 }
 
 export interface PaperBotPosition {

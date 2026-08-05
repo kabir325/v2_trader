@@ -52,6 +52,12 @@ export const SystemConfigTab: React.FC<SystemConfigTabProps> = ({
   const [growwTotp, setGrowwTotp] = useState<string>(config?.credentials?.groww_totp_key || "");
   const [showSecrets, setShowSecrets] = useState<boolean>(false);
 
+  // Reset & UI Feedback State
+  const [resetAmount, setResetAmount] = useState<number>(config?.trading.initial_capital || 100000);
+  const [confirmText, setConfirmText] = useState<string>("");
+  const [savedMsg, setSavedMsg] = useState<string>("");
+  const [copiedService, setCopiedService] = useState<boolean>(false);
+
   // Script Sandbox State
   const [scriptTemplate, setScriptTemplate] = useState<string>("quote");
   const [scriptCode, setScriptCode] = useState<string>(

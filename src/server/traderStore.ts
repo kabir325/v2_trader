@@ -51,9 +51,9 @@ export function checkNseMarketStatus(): { isOpen: boolean; statusText: string } 
 export let config: SystemConfig = {
   trading: {
     mode: (process.env.TRADING_MODE as TradingMode) || "PAPER",
-    initial_capital: 100000,
+    initial_capital: 10000,
     max_position_pct: 0.10,
-    max_trade_amount: 15000,
+    max_trade_amount: 1000,
     stop_loss_pct: 2.0,
     take_profit_pct: 4.0,
     max_concurrent_positions: 5,
@@ -292,16 +292,16 @@ function createIndexStore(
     description,
     symbols,
     watchlist,
-    cashBalance: 76500.00,
+    cashBalance: 8850.00,
     currentWeek: 2,
     positions: [
       {
         id: `pos-${id}-1`,
         symbol: top1,
-        qty: 3,
+        qty: 1,
         avgPrice: Math.round((watchlist[0]?.close || 2500) * 0.985 * 100) / 100,
         currentPrice: watchlist[0]?.ltp || 2500,
-        pnl: 115.50,
+        pnl: 38.50,
         pnlPct: 1.48,
         mode: "PAPER",
         entryTime: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -310,10 +310,10 @@ function createIndexStore(
       {
         id: `pos-${id}-2`,
         symbol: top2,
-        qty: 4,
+        qty: 1,
         avgPrice: Math.round((watchlist[1]?.close || 1800) * 0.988 * 100) / 100,
         currentPrice: watchlist[1]?.ltp || 1800,
-        pnl: 88.00,
+        pnl: 22.00,
         pnlPct: 1.22,
         mode: "PAPER",
         entryTime: new Date(Date.now() - 86400000).toISOString(),
@@ -419,14 +419,14 @@ function createIndexStore(
     },
     equityCurve: Array.from({ length: 15 }, (_, i) => {
       const date = new Date(Date.now() - (14 - i) * 86400000);
-      const base = 100000;
-      const growth = Math.sin(i / 2) * 800 + i * 220;
+      const base = 10000;
+      const growth = Math.sin(i / 2) * 80 + i * 22;
       const value = Math.round((base + growth) * 100) / 100;
       return {
         timestamp: date.toISOString().split("T")[0],
         value: value,
-        cash: Math.round((value - 23500) * 100) / 100,
-        invested: 23500,
+        cash: Math.round((value - 1150) * 100) / 100,
+        invested: 1150,
       };
     })
   };

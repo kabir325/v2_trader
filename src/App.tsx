@@ -6,6 +6,7 @@ import { WatchlistTab } from "./components/WatchlistTab";
 import { MlStatusTab } from "./components/MlStatusTab";
 import { LogsTab } from "./components/LogsTab";
 import { SystemConfigTab } from "./components/SystemConfigTab";
+import { MobileDashboard } from "./components/MobileDashboard";
 import {
   PortfolioStats,
   Position,
@@ -21,6 +22,18 @@ import { LayoutDashboard, Clock, Eye, Cpu, Terminal, Settings } from "lucide-rea
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("overview");
+  const [currentPath, setCurrentPath] = useState<string>(window.location.pathname);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(window.location.pathname);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, "", path);
+    setCurrentPath(path);
+  };
   const [stats, setStats] = useState<PortfolioStats | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [closedTrades, setClosedTrades] = useState<Trade[]>([]);
@@ -32,7 +45,7 @@ export default function App() {
   const [heartbeats, setHeartbeats] = useState<Heartbeat[]>([]);
 
   const [loading, setLoading] = useState<boolean>(false);
-  const [autoCycle, setAutoCycle] = useState<boolean>(false);
+  const [autoCycle, setAutoCycle] = useState<boolean>(true);
 
   // Fetch initial portfolio & application state
   const fetchData = async () => {
@@ -213,6 +226,27 @@ export default function App() {
     { id: "config", label: "System & Config", icon: Settings },
   ];
 
+  if (currentPath === "/mobile") {
+    return (
+      <MobileDashboard
+        stats={stats}
+        positions={positions}
+        signals={signals}
+        watchlist={watchlist}
+        mlStatus={mlStatus}
+        config={config}
+        autoCycle={autoCycle}
+        onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
+        onRunCycle={runCycle}
+        onRetrainModel={retrainModel}
+        selectedIndex={stats?.selectedIndex || "nifty_50"}
+        onSelectIndex={handleSelectIndex}
+        loading={loading}
+        onNavigateDesktop={() => navigateTo("/")}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-teal-500 selection:text-slate-950">
       {/* Top Navigation */}
@@ -226,6 +260,7 @@ export default function App() {
         onDownloadReport={downloadReport}
         onSelectIndex={handleSelectIndex}
         loading={loading}
+        onNavigateMobile={() => navigateTo("/mobile")}
       />
 
       {/* Main Content Area */}

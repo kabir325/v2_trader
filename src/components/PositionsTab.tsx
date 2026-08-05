@@ -2,6 +2,7 @@ import React from "react";
 import { Position, Trade } from "../types";
 import { ArrowUpRight, ArrowDownRight, CheckCircle2, Clock, XCircle, FileSpreadsheet } from "lucide-react";
 import { InfoTooltip } from "./InfoTooltip";
+import { StockComparisonChart } from "./StockComparisonChart";
 
 interface PositionsTabProps {
   positions: Position[];
@@ -16,6 +17,9 @@ export const PositionsTab: React.FC<PositionsTabProps> = ({
 }) => {
   return (
     <div className="space-y-3.5 sm:space-y-4">
+      {/* Stock Performance & Entry/Exit Timeline Graph */}
+      <StockComparisonChart positions={positions} closedTrades={closedTrades} />
+
       {/* Active Open Positions Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">

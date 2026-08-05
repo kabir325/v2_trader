@@ -37,8 +37,8 @@ export const SystemConfigTab: React.FC<SystemConfigTabProps> = ({
 }) => {
   // Trading Params State
   const [mode, setMode] = useState<"PAPER" | "LIVE">(config?.trading.mode || "PAPER");
-  const [capital, setCapital] = useState<number>(config?.trading.initial_capital || 100000);
-  const [maxTradeAmount, setMaxTradeAmount] = useState<number>(config?.trading.max_trade_amount || 15000);
+  const [capital, setCapital] = useState<number>(config?.trading.initial_capital || 10000);
+  const [maxTradeAmount, setMaxTradeAmount] = useState<number>(config?.trading.max_trade_amount || 1000);
   const [maxPosPct, setMaxPosPct] = useState<number>((config?.trading.max_position_pct || 0.1) * 100);
   const [stopLoss, setStopLoss] = useState<number>(config?.trading.stop_loss_pct || 2.0);
   const [takeProfit, setTakeProfit] = useState<number>(config?.trading.take_profit_pct || 4.0);
@@ -53,7 +53,7 @@ export const SystemConfigTab: React.FC<SystemConfigTabProps> = ({
   const [showSecrets, setShowSecrets] = useState<boolean>(false);
 
   // Reset & UI Feedback State
-  const [resetAmount, setResetAmount] = useState<number>(config?.trading.initial_capital || 100000);
+  const [resetAmount, setResetAmount] = useState<number>(config?.trading.initial_capital || 10000);
   const [confirmText, setConfirmText] = useState<string>("");
   const [savedMsg, setSavedMsg] = useState<string>("");
   const [copiedService, setCopiedService] = useState<boolean>(false);

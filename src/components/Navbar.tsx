@@ -8,7 +8,8 @@ import {
   TrendingUp,
   ShieldCheck,
   Radio,
-  Layers
+  Layers,
+  Smartphone
 } from "lucide-react";
 import { PortfolioStats, IndexInfo } from "../types";
 
@@ -22,6 +23,7 @@ interface NavbarProps {
   onDownloadReport: () => void;
   onSelectIndex: (indexId: string) => void;
   loading: boolean;
+  onNavigateMobile?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onDownloadReport,
   onSelectIndex,
   loading,
+  onNavigateMobile,
 }) => {
   const isLive = stats?.mode === "LIVE";
   const selectedIndex = stats?.selectedIndex || "NIFTY_50";
@@ -169,6 +172,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <RotateCcw className="w-4 h-4" />
             </button>
+
+            {/* Mobile View Switcher */}
+            {onNavigateMobile && (
+              <button
+                onClick={onNavigateMobile}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-300 text-xs font-semibold transition-all"
+                title="Switch to Mobile Simplified UI (/mobile)"
+              >
+                <Smartphone className="w-4 h-4 text-teal-400" />
+                <span className="hidden sm:inline">Mobile UI</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

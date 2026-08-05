@@ -17,7 +17,8 @@ import {
   getStockHistory,
   runSimulationCycle,
   retrainModel,
-  resetPortfolio
+  resetPortfolio,
+  trainHistoricalModel
 } from "./src/server/traderStore.js";
 
 import { growwClient } from "./src/server/growwClient.js";
@@ -144,6 +145,31 @@ async function startServer() {
       run: newRun,
       message: `ML Model retrained successfully for active index [${getActiveIndexStore().name}]`,
     });
+  });
+
+  // Fetch Groww / Yahoo Real Historical OHLCV Candles
+  app.get("/api/groww/historical", async (req, res) => {
+    try {
+      const symbol = (req.query.symbol as string) || "RELIANCE";
+      const timeframe = (req.query.timeframe as any) || "3m";
+      const interval = (req.query.interval as any) || "1d";
+
+      const candles = await growwClient.getHistoricalOHLCV(symbol, timeframe, interval);
+      res.json({ success: true, symbol, timeframe, interval, total: candles.length, candles });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Historical candles error" });
+    }
+  });
+
+  // Train ML Model on Real Historical OHLCV Data & Run Backtest
+  app.post("/api/ml/train-historical", async (req, res) => {
+    try {
+      const options = req.body;
+      const result = await trainHistoricalModel(options);
+      res.json({ success: true, result });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Historical training error" });
+    }
   });
 
   // Reset Portfolio (Supports hard reset & custom starting capital)

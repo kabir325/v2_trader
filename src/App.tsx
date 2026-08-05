@@ -7,6 +7,7 @@ import { MlStatusTab } from "./components/MlStatusTab";
 import { LogsTab } from "./components/LogsTab";
 import { SystemConfigTab } from "./components/SystemConfigTab";
 import { MobileDashboard } from "./components/MobileDashboard";
+import { HistoricalTrainingTab } from "./components/HistoricalTrainingTab";
 import {
   PortfolioStats,
   Position,
@@ -18,7 +19,7 @@ import {
   SystemConfig,
   Heartbeat
 } from "./types";
-import { LayoutDashboard, Clock, Eye, Cpu, Terminal, Settings } from "lucide-react";
+import { LayoutDashboard, Clock, Eye, Cpu, Terminal, Settings, GraduationCap } from "lucide-react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("overview");
@@ -221,6 +222,7 @@ export default function App() {
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "positions", label: "Positions & Trades", icon: Clock },
     { id: "watchlist", label: "Watchlist & Signals", icon: Eye },
+    { id: "historical", label: "Historical Training", icon: GraduationCap },
     { id: "ml", label: "ML Model Status", icon: Cpu },
     { id: "logs", label: "System Logs", icon: Terminal },
     { id: "config", label: "System & Config", icon: Settings },
@@ -303,6 +305,16 @@ export default function App() {
             onAddStock={handleAddStock}
             onToggleStock={handleToggleStock}
             onDeleteStock={handleDeleteStock}
+          />
+        )}
+
+        {activeTab === "historical" && (
+          <HistoricalTrainingTab
+            availableIndexes={stats?.availableIndexes || []}
+            selectedIndex={stats?.selectedIndex || "nifty_50"}
+            onSelectIndex={handleSelectIndex}
+            marketStatusText={stats?.marketStatusText}
+            marketOpen={stats?.marketOpen}
           />
         )}
 

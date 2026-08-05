@@ -185,10 +185,77 @@ export interface SystemConfig {
     close_time: string;
     skip_open_minutes: number;
     skip_close_minutes: number;
+    allow_market_closed_simulation?: boolean;
   };
   ml: {
     forward_return_minutes: number;
     min_confidence: number;
     retrain_on_sunday: boolean;
   };
+}
+
+export interface HistoricalCandleData {
+  timestamp: string;
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  rsi?: number;
+  macd?: number;
+  macdSignal?: number;
+  ema20?: number;
+  ema50?: number;
+  signal?: "BUY" | "SELL" | "HOLD";
+}
+
+export interface HistoricalTrainOptions {
+  symbol: string;
+  timeframe: "1m" | "3m" | "6m" | "1y";
+  interval: "1d" | "15m" | "5m";
+  epochs: number;
+  trainRatio: number; // e.g. 0.8
+  learningRate: number; // e.g. 0.01
+  features: {
+    useRsi: boolean;
+    useMacd: boolean;
+    useEmaCross: boolean;
+    useVolumeSpike: boolean;
+    useBollinger: boolean;
+  };
+  targetHorizonBars: number; // e.g. 5 bars
+}
+
+export interface HistoricalTrainResult {
+  symbol: string;
+  indexName: string;
+  totalCandles: number;
+  trainSamples: number;
+  testSamples: number;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1Score: number;
+  lossHistory: { epoch: number; trainLoss: number; valLoss: number }[];
+  featureImportance: { name: string; importance: number }[];
+  backtest: {
+    totalTrades: number;
+    winRate: number;
+    totalReturnPct: number;
+    buyHoldReturnPct: number;
+    maxDrawdownPct: number;
+    profitFactor: number;
+    tradesList: {
+      entryDate: string;
+      exitDate: string;
+      side: "BUY" | "SELL";
+      entryPrice: number;
+      exitPrice: number;
+      pnlPct: number;
+      reason: string;
+    }[];
+  };
+  candlesWithSignals: HistoricalCandleData[];
+  trainedAt: string;
 }

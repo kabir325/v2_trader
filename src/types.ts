@@ -83,6 +83,25 @@ export interface Heartbeat {
   message: string;
 }
 
+export interface RLStats {
+  currentWeek: number;
+  phase: "PAPER_RL_TRAINING" | "LIVE_RL_EXECUTION";
+  episodes: number;
+  explorationRate: number;
+  avgReward: number;
+  totalRewards: number;
+  qPolicyConvergence: number;
+  recentEpisodes: {
+    episode: number;
+    action: "BUY" | "SELL" | "HOLD";
+    symbol: string;
+    reward: number;
+    pnlPct: number;
+    qValue: number;
+    timestamp: string;
+  }[];
+}
+
 export interface PortfolioStats {
   totalValue: number;
   initialCapital: number;
@@ -99,7 +118,9 @@ export interface PortfolioStats {
   paperTrainingWeeks: number;
   mode: TradingMode;
   marketOpen: boolean;
+  marketStatusText?: string;
   lastCycleAt?: string;
+  rlStats?: RLStats;
 }
 
 export interface EquityPoint {

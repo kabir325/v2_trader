@@ -20,6 +20,8 @@ import {
   resetPortfolio
 } from "./src/server/traderStore.js";
 
+import { growwClient } from "./src/server/growwClient.js";
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -43,15 +45,69 @@ async function startServer() {
     });
   });
 
-  // Run Simulation Cycle
-  app.post("/api/trader/cycle", (_req, res) => {
-    const stats = runSimulationCycle();
-    res.json({
-      success: true,
-      stats,
-      latestSignal: signals[0],
-      latestHeartbeat: heartbeats[0],
-    });
+  // Run Simulation / Market Cycle
+  app.post("/api/trader/cycle", async (_req, res) => {
+    try {
+      const stats = await runSimulationCycle();
+      res.json({
+        success: true,
+        stats,
+        latestSignal: signals[0],
+        latestHeartbeat: heartbeats[0],
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Cycle error" });
+    }
+  });
+
+  // Sandbox Script Executor (Allows user to run custom JS/Node code with injected Groww keys)
+  app.post("/api/sandbox/execute", async (req, res) => {
+    const { code } = req.body;
+    if (!code || typeof code !== "string") {
+      return res.status(400).json({ error: "Code snippet string is required" });
+    }
+
+    const logs: string[] = [];
+    const customConsole = {
+      log: (...args: any[]) => logs.push(args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ")),
+      error: (...args: any[]) => logs.push("[ERROR] " + args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ")),
+      warn: (...args: any[]) => logs.push("[WARN] " + args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ")),
+      info: (...args: any[]) => logs.push("[INFO] " + args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ")),
+    };
+
+    const token = config.credentials.groww_api_token || process.env.GROWW_API_TOKEN || "grw_live_demo_key_998811";
+    const secret = config.credentials.groww_api_secret || process.env.GROWW_API_SECRET || "sec_groww_772211";
+    const totpKey = config.credentials.groww_totp_key || process.env.GROWW_TOTP_KEY || "JBSWY3DPEHPK3PXP";
+
+    try {
+      const asyncFn = new Function(
+        "GROWW_API_TOKEN",
+        "GROWW_API_SECRET",
+        "GROWW_TOTP_KEY",
+        "growwClient",
+        "console",
+        "fetch",
+        `return (async () => {
+          ${code}
+        })();`
+      );
+
+      const result = await asyncFn(token, secret, totpKey, growwClient, customConsole, globalThis.fetch);
+
+      res.json({
+        success: true,
+        logs,
+        result: result !== undefined ? (typeof result === "object" ? JSON.stringify(result, null, 2) : String(result)) : null,
+        error: null,
+      });
+    } catch (err: any) {
+      res.json({
+        success: false,
+        logs,
+        result: null,
+        error: err.message || String(err),
+      });
+    }
   });
 
   // Trigger Model Retraining

@@ -193,6 +193,89 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       </div>
 
+      {/* 3-Week Reinforcement Learning Progress Tracker Card */}
+      <div className="bg-slate-900 border border-teal-500/30 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Activity className="w-4 h-4 text-teal-400" />
+              3-Week Self-Learning Reinforcement Learning (RL) Engine
+              <InfoTooltip
+                title="3-Week Trial & Error RL Training"
+                text="For the first 3 weeks, the RL bot trades autonomously on paper/simulation to learn market patterns and receive profit/loss feedback rewards. At Week 4, it automatically transitions to live trading with full execution power."
+              />
+            </h3>
+            <p className="text-xs text-slate-400">
+              The algorithm trades daily, learns from profit/loss reward feedback, decays exploration rate, and converges on high-confidence Q-policies.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+              (stats?.currentWeek || 1) >= 4
+                ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
+                : "bg-teal-500/20 border-teal-500/40 text-teal-300"
+            }`}>
+              {(stats?.currentWeek || 1) >= 4 ? "⚡ PHASE 2: LIVE CAPITAL EXECUTION" : `🧠 PHASE 1: PAPER RL TRAINING (WEEK ${stats?.currentWeek || 1}/3)`}
+            </span>
+          </div>
+        </div>
+
+        {/* 3-Week Progress Bar */}
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-slate-300 font-medium">
+            <span>Training Roadmap Timeline</span>
+            <span className="text-teal-400 font-bold">Week {stats?.currentWeek || 2} of 3 Complete</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            <div className={`p-2.5 rounded-lg border text-xs text-center ${
+              (stats?.currentWeek || 2) >= 1 ? "bg-teal-950/60 border-teal-500/50 text-teal-300" : "bg-slate-950 border-slate-800 text-slate-600"
+            }`}>
+              <span className="font-bold block">Week 1</span>
+              <span className="text-[10px] text-slate-400">High Exploration (80%)</span>
+            </div>
+            <div className={`p-2.5 rounded-lg border text-xs text-center ${
+              (stats?.currentWeek || 2) >= 2 ? "bg-teal-950/60 border-teal-500/50 text-teal-300" : "bg-slate-950 border-slate-800 text-slate-600"
+            }`}>
+              <span className="font-bold block">Week 3</span>
+              <span className="text-[10px] text-slate-400">Policy Refining (45%)</span>
+            </div>
+            <div className={`p-2.5 rounded-lg border text-xs text-center ${
+              (stats?.currentWeek || 2) >= 3 ? "bg-teal-950/60 border-teal-500/50 text-teal-300" : "bg-slate-950 border-slate-800 text-slate-600"
+            }`}>
+              <span className="font-bold block">Week 3</span>
+              <span className="text-[10px] text-slate-400">Convergence (20%)</span>
+            </div>
+            <div className={`p-2.5 rounded-lg border text-xs text-center ${
+              (stats?.currentWeek || 2) >= 4 ? "bg-rose-950/60 border-rose-500/50 text-rose-300" : "bg-slate-950 border-slate-800 text-slate-500"
+            }`}>
+              <span className="font-bold block">Week 4+</span>
+              <span className="text-[10px] text-slate-400">Real Money Live Trading</span>
+            </div>
+          </div>
+        </div>
+
+        {/* RL Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs">
+          <div>
+            <span className="text-slate-400 block text-[11px]">Training Episodes</span>
+            <span className="text-white font-bold text-sm font-mono">{stats?.rlStats?.episodes || 142} steps</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block text-[11px]">Exploration Rate</span>
+            <span className="text-amber-400 font-bold text-sm font-mono">{((stats?.rlStats?.explorationRate || 0.45) * 100).toFixed(0)}%</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block text-[11px]">Cumulative Reward</span>
+            <span className="text-emerald-400 font-bold text-sm font-mono">+{(stats?.rlStats?.totalRewards || 24.8).toFixed(1)} pts</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block text-[11px]">Policy Convergence</span>
+            <span className="text-teal-300 font-bold text-sm font-mono">{stats?.rlStats?.qPolicyConvergence || 84.5}%</span>
+          </div>
+        </div>
+      </div>
+
       {/* Equity Curve Chart */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">

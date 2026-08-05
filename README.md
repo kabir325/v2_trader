@@ -32,27 +32,48 @@ A full-stack, production-grade algorithmic trading software for **NSE India** in
 
 ---
 
-## 🛠️ Groww API Setup (API Key & Secret)
+## 🛠️ Groww API Setup & Credentials Breakdown
 
-You can configure your Groww credentials in **two ways**:
+On the Groww Developer Console / Account Security settings, you will see two separate options: **Access Token (API Key)** and **2FA / TOTP Key**. You need **BOTH** to enable fully automated trading without manual daily logins:
 
-### Option 1: Via the Application UI (System & Config Tab)
-1. Open the **System & Config** tab in the top navigation bar.
-2. Locate the **Groww API Key & Live Secret Credentials** card.
-3. Enter your credentials:
-   - `GROWW_API_TOKEN`: Your API Key from Groww Developer Console.
-   - `GROWW_API_SECRET`: Your Secret Key from Groww Developer Console.
-   - `GROWW_TOTP_KEY`: Your 2FA TOTP secret key for automated morning session login.
-4. Click **Save Configuration & API Credentials**.
+### 1. Access Token & API Secret (`GROWW_API_TOKEN` & `GROWW_API_SECRET`)
+- **What it is:** Select **"Access Token / Create API App"** in `developer.groww.in`.
+- **GROWW_API_TOKEN:** Paste the generated **Access Token** (or API Key) here. This identifies your trading app and grants API authorization to read market data and place orders.
+- **GROWW_API_SECRET:** Paste the **App Secret** (or API Secret) generated alongside your token. Used for header signature verification.
 
-### Option 2: Via Environment Variables (`.env`)
-Create or update the `.env` file in the root directory:
+---
+
+### 2. 2FA TOTP Key (`GROWW_TOTP_KEY`)
+- **What it is:** Go to Groww Mobile App or Web &rarr; **Account & Security Settings &rarr; 2FA / TOTP for API**.
+- **How to set it up:** When enabling 2FA, Groww will display a QR code along with a **16-character alphanumeric Secret Key** beneath or beside the QR code (e.g. `JBSWY3DPEHPK3PXP`).
+- **GROWW_TOTP_KEY:** Copy that **16-character secret key string** into `GROWW_TOTP_KEY`.
+- **Why this is needed:** Instead of requiring you to open Google Authenticator and manually type a 6-digit code every morning, the Raspberry Pi daemon uses this key to mathematically compute valid 6-digit TOTP codes automatically at market open!
+
+---
+
+### Quick Summary Table:
+
+| Field | Where to generate in Groww | What value to copy |
+| :--- | :--- | :--- |
+| **`GROWW_API_TOKEN`** | Developer Console (`developer.groww.in`) &rarr; **Access Token / API Key** | The generated **Access Token** / API Key string |
+| **`GROWW_API_SECRET`** | Developer Console (`developer.groww.in`) &rarr; **Access Token / API Key** | The generated **App Secret** key string |
+| **`GROWW_TOTP_KEY`** | Account & Security &rarr; **2FA / TOTP Setup** | The **16-character secret key** (shown under the QR code) |
+
+---
+
+### Option 1: Configure via Application UI (System & Config Tab)
+1. Open the **System & Config** tab in the app UI.
+2. Fill in the three fields in the **Groww API Key & Live Secret Credentials** box.
+3. Click **Save Configuration & API Credentials**.
+
+### Option 2: Configure via Environment Variables (`.env`)
+Create or update your `.env` file on your server / Raspberry Pi:
 
 ```env
 # GROWW API CREDENTIALS
-GROWW_API_TOKEN="your_groww_api_token_here"
-GROWW_API_SECRET="your_groww_api_secret_here"
-GROWW_TOTP_KEY="your_groww_totp_key_here"
+GROWW_API_TOKEN="grw_live_token_your_access_token_here"
+GROWW_API_SECRET="sec_groww_your_app_secret_here"
+GROWW_TOTP_KEY="JBSWY3DPEHPK3PXP" # 16-character TOTP secret key string
 
 # FAULT-TOLERANT DATABASE & PORT
 NODE_ENV="production"

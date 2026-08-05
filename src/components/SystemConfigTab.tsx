@@ -52,11 +52,60 @@ export const SystemConfigTab: React.FC<SystemConfigTabProps> = ({
   const [growwTotp, setGrowwTotp] = useState<string>(config?.credentials?.groww_totp_key || "");
   const [showSecrets, setShowSecrets] = useState<boolean>(false);
 
-  // Reset Modal State
-  const [resetAmount, setResetAmount] = useState<number>(0);
-  const [confirmText, setConfirmText] = useState<string>("");
-  const [savedMsg, setSavedMsg] = useState<string>("");
-  const [copiedService, setCopiedService] = useState<boolean>(false);
+  // Script Sandbox State
+  const [scriptTemplate, setScriptTemplate] = useState<string>("quote");
+  const [scriptCode, setScriptCode] = useState<string>(
+    `// 1. Fetch live quote for RELIANCE using growwClient\nconst quote = await growwClient.getQuote("RELIANCE");\nconsole.log("Groww Live Quote for RELIANCE:", quote);\nreturn quote;`
+  );
+  const [scriptLogs, setScriptLogs] = useState<string[]>([]);
+  const [scriptResult, setScriptResult] = useState<string | null>(null);
+  const [scriptError, setScriptError] = useState<string | null>(null);
+  const [executingScript, setExecutingScript] = useState<boolean>(false);
+
+  const handleTemplateChange = (tmpl: string) => {
+    setScriptTemplate(tmpl);
+    if (tmpl === "quote") {
+      setScriptCode(
+        `// 1. Fetch live quote for RELIANCE using growwClient\nconst quote = await growwClient.getQuote("RELIANCE");\nconsole.log("Groww Live Quote for RELIANCE:", quote);\nreturn quote;`
+      );
+    } else if (tmpl === "creds") {
+      setScriptCode(
+        `// 2. Check injected Groww API credentials & token status\nconsole.log("Checking injected Groww API Credentials...");\nconsole.log("GROWW_API_TOKEN:", GROWW_API_TOKEN ? GROWW_API_TOKEN.slice(0, 10) + "..." : "NOT SET");\nconsole.log("GROWW_API_SECRET:", GROWW_API_SECRET ? "SECRET_EXISTS (" + GROWW_API_SECRET.length + " chars)" : "NOT SET");\nconsole.log("GROWW_TOTP_KEY:", GROWW_TOTP_KEY ? "TOTP_EXISTS (" + GROWW_TOTP_KEY.length + " chars)" : "NOT SET");\nreturn { tokenValid: Boolean(GROWW_API_TOKEN && GROWW_API_TOKEN.length > 5) };`
+      );
+    } else if (tmpl === "groww_direct") {
+      setScriptCode(
+        `// 3. Direct HTTP call to Groww stock price ticker\nconsole.log("Fetching live price for TCS via Groww endpoint...");\nconst res = await fetch("https://groww.in/v1/api/stocks_data/v1/tr_live_prices/exchange/NSE/segment/CASH/TCS/latest");\nconst data = await res.json();\nconsole.log("TCS Groww Ticker Response:", data);\nreturn { ltp: data.ltp || data.lastPrice, symbol: "TCS" };`
+      );
+    } else if (tmpl === "multi_quote") {
+      setScriptCode(
+        `// 4. Batch query multiple NSE stocks\nconst symbols = ["RELIANCE", "TCS", "HDFCBANK", "INFY"];\nconst results = {};\nfor (const sym of symbols) {\n  const q = await growwClient.getQuote(sym);\n  results[sym] = q.ltp;\n  console.log(\`\${sym}: ₹\${q.ltp}\`);\n}\nreturn results;`
+      );
+    }
+  };
+
+  const handleRunScript = async () => {
+    setExecutingScript(true);
+    setScriptLogs([]);
+    setScriptResult(null);
+    setScriptError(null);
+
+    try {
+      const response = await fetch("/api/sandbox/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: scriptCode }),
+      });
+      const data = await response.json();
+
+      if (data.logs) setScriptLogs(data.logs);
+      if (data.result) setScriptResult(data.result);
+      if (data.error) setScriptError(data.error);
+    } catch (err: any) {
+      setScriptError(err.message || "Failed to execute script");
+    } finally {
+      setExecutingScript(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,7 +193,13 @@ WantedBy=multi-user.target`;
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-slate-400 text-[11px] font-semibold mb-1">GROWW_API_TOKEN</label>
+            <label className="block text-slate-400 text-[11px] font-semibold mb-1 flex items-center">
+              GROWW_API_TOKEN (Access Token / API Key)
+              <InfoTooltip
+                title="GROWW_API_TOKEN"
+                text="Generated under 'Access Token' / 'API Key' in your Groww Developer Console (developer.groww.in). Authorizes API requests to fetch quotes and place orders."
+              />
+            </label>
             <input
               type={showSecrets ? "text" : "password"}
               value={growwToken}
@@ -155,7 +210,13 @@ WantedBy=multi-user.target`;
           </div>
 
           <div>
-            <label className="block text-slate-400 text-[11px] font-semibold mb-1">GROWW_API_SECRET</label>
+            <label className="block text-slate-400 text-[11px] font-semibold mb-1 flex items-center">
+              GROWW_API_SECRET (App Secret)
+              <InfoTooltip
+                title="GROWW_API_SECRET"
+                text="The App Secret generated alongside your API Key in the Groww Developer Portal. Used to sign request headers for secure trading calls."
+              />
+            </label>
             <input
               type={showSecrets ? "text" : "password"}
               value={growwSecret}
@@ -166,7 +227,13 @@ WantedBy=multi-user.target`;
           </div>
 
           <div>
-            <label className="block text-slate-400 text-[11px] font-semibold mb-1">GROWW_TOTP_KEY (2FA Auto-Login)</label>
+            <label className="block text-slate-400 text-[11px] font-semibold mb-1 flex items-center">
+              GROWW_TOTP_KEY (2FA Secret Key)
+              <InfoTooltip
+                title="GROWW_TOTP_KEY"
+                text="The 16-character alphanumeric secret string shown when enabling 2FA / TOTP in Groww Security. Allows the Raspberry Pi daemon to auto-generate 6-digit OTP codes every morning."
+              />
+            </label>
             <input
               type={showSecrets ? "text" : "password"}
               value={growwTotp}
@@ -179,9 +246,102 @@ WantedBy=multi-user.target`;
 
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-amber-300/90 flex items-start gap-2">
           <Shield className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-[11px] leading-relaxed">
-            <strong>Where to get keys:</strong> Login to <u>developer.groww.in</u> &rarr; Create App &rarr; Copy API Key, App Secret & TOTP Secret Key. You can also define these directly in your Raspberry Pi's <code>.env</code> file.
-          </p>
+          <div className="text-[11px] leading-relaxed space-y-1">
+            <p><strong>Step-by-Step Groww Credentials Setup:</strong></p>
+            <p>1. <strong>Access Token / API Key:</strong> Select "Access Token / Create API Key" on <u>developer.groww.in</u> &rarr; Copy the generated token into <code>GROWW_API_TOKEN</code> and secret into <code>GROWW_API_SECRET</code>.</p>
+            <p>2. <strong>TOTP 2FA Secret Key:</strong> Under Groww Account &rarr; Security &rarr; Enable 2FA/TOTP &rarr; Copy the 16-character secret key string (below the QR code) into <code>GROWW_TOTP_KEY</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Live Script Executor & Groww API Sandbox */}
+      <div className="bg-slate-900 border border-indigo-500/30 rounded-xl p-5 shadow-lg space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Zap className="w-4 h-4 text-indigo-400" />
+              Live Script Executor & Groww API Sandbox
+              <InfoTooltip
+                title="Live Code Playground"
+                text="Write JavaScript / Node.js code snippets to directly test your Groww API keys, verify token authentication, or execute custom algorithms. Injected scope includes GROWW_API_TOKEN, GROWW_API_SECRET, GROWW_TOTP_KEY, growwClient, and fetch."
+              />
+            </h3>
+            <p className="text-xs text-slate-400">
+              Test Groww API endpoints directly by writing custom JavaScript code. Pre-populated variables: <code className="text-amber-300 bg-slate-950 px-1 py-0.5 rounded">GROWW_API_TOKEN</code>, <code className="text-amber-300 bg-slate-950 px-1 py-0.5 rounded">GROWW_API_SECRET</code>, <code className="text-amber-300 bg-slate-950 px-1 py-0.5 rounded">GROWW_TOTP_KEY</code>, <code className="text-emerald-300 bg-slate-950 px-1 py-0.5 rounded">growwClient</code>.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={scriptTemplate}
+              onChange={(e) => handleTemplateChange(e.target.value)}
+              className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
+            >
+              <option value="quote">Template: Test Live Quote</option>
+              <option value="creds">Template: Verify API Keys</option>
+              <option value="groww_direct">Template: Groww Ticker API</option>
+              <option value="multi_quote">Template: Batch Symbols Query</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={handleRunScript}
+              disabled={executingScript}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-950/50 transition-all disabled:opacity-50"
+            >
+              {executingScript ? <Activity className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 fill-current" />}
+              {executingScript ? "Executing..." : "Run Script"}
+            </button>
+          </div>
+        </div>
+
+        {/* Code Editor Area */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="block text-slate-400 text-[11px] font-semibold">JavaScript / Node Code Editor:</label>
+            <textarea
+              value={scriptCode}
+              onChange={(e) => setScriptCode(e.target.value)}
+              rows={8}
+              className="w-full bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs rounded-lg p-3 focus:outline-none focus:border-indigo-500 leading-relaxed"
+              placeholder="// Write your custom JS code here..."
+            />
+          </div>
+
+          {/* Console / Output Terminal */}
+          <div className="space-y-1">
+            <label className="block text-slate-400 text-[11px] font-semibold">Execution Output & Terminal Logs:</label>
+            <div className="w-full h-[180px] bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-[11px] overflow-y-auto space-y-1">
+              {scriptLogs.length === 0 && !scriptResult && !scriptError && (
+                <p className="text-slate-600 italic">Console output will appear here after clicking "Run Script"...</p>
+              )}
+
+              {scriptLogs.map((log, idx) => (
+                <p key={idx} className="text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  <span className="text-indigo-400 select-none">&gt; </span>
+                  {log}
+                </p>
+              ))}
+
+              {scriptResult && (
+                <div className="pt-2 border-t border-slate-800/80">
+                  <span className="text-emerald-400 font-bold block mb-1">Return Result:</span>
+                  <pre className="text-emerald-300 text-[10px] bg-emerald-950/30 p-2 rounded border border-emerald-900/40 overflow-x-auto">
+                    {scriptResult}
+                  </pre>
+                </div>
+              )}
+
+              {scriptError && (
+                <div className="pt-2 border-t border-slate-800/80">
+                  <span className="text-rose-400 font-bold block mb-1">Execution Error:</span>
+                  <p className="text-rose-300 text-[11px] bg-rose-950/40 p-2 rounded border border-rose-900/40 font-mono">
+                    {scriptError}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

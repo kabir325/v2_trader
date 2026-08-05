@@ -61,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Status Indicators */}
           <div className="hidden lg:flex items-center gap-3">
-            {/* Mode Badge */}
+            {/* Mode / RL Phase Badge */}
             <div
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold ${
                 isLive
@@ -70,19 +70,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Radio className={`w-3.5 h-3.5 ${isLive ? "animate-pulse" : ""}`} />
-              {isLive ? "🔴 LIVE TRADING" : "📝 PAPER TRADING"}
+              {isLive ? "⚡ LIVE MONEY TRADING" : `🧠 RL TRIAL & ERROR (WEEKS 1-3)`}
             </div>
 
             {/* Current Week Badge */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300 font-medium">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-              Week {stats?.currentWeek || 2} of {stats?.paperTrainingWeeks || 3} (Data Collection)
+              Week {stats?.currentWeek || 2} of 3 (Paper RL Training)
             </div>
 
-            {/* Market Open Badge */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-emerald-400 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              NSE Market Open
+            {/* Dynamic Market Open Badge */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border text-xs font-medium ${
+              stats?.marketOpen ? "border-emerald-500/40 text-emerald-400" : "border-rose-500/40 text-rose-400"
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${stats?.marketOpen ? "bg-emerald-400 animate-ping" : "bg-rose-400"}`}></span>
+              {stats?.marketStatusText || (stats?.marketOpen ? "🟢 NSE Market OPEN" : "🔴 NSE Market CLOSED")}
             </div>
           </div>
 
@@ -96,20 +98,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
                   : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
               }`}
-              title="Automatically run trading cycle every 5 seconds"
+              title="Automatically poll live Groww quotes every 5 seconds"
             >
               <Zap className={`w-3.5 h-3.5 ${autoCycle ? "text-amber-400 animate-bounce" : ""}`} />
               <span className="hidden sm:inline">{autoCycle ? "Auto-Poll ON" : "Auto-Poll OFF"}</span>
             </button>
 
-            {/* Run Single Cycle */}
+            {/* Evaluate Market & RL Step */}
             <button
               onClick={onRunCycle}
               disabled={loading}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-900/30 transition-all disabled:opacity-50"
+              title="Poll live Groww market quotes & evaluate RL trading policy. Executes trades ONLY when Q-confidence exceeds entry threshold."
             >
               <Play className="w-3.5 h-3.5 fill-current" />
-              <span className="hidden sm:inline">Run Cycle</span>
+              <span className="hidden sm:inline">Evaluate Market</span>
             </button>
 
             {/* Retrain ML */}

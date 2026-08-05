@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { IndexInfo, HistoricalTrainOptions, HistoricalTrainResult } from "../types";
+import { InfoTooltip } from "./InfoTooltip";
 import {
   LineChart,
   Line,
@@ -30,7 +31,6 @@ import {
   Zap,
   Check
 } from "lucide-react";
-import { InfoTooltip } from "./InfoTooltip";
 
 interface HistoricalTrainingTabProps {
   availableIndexes: IndexInfo[];
@@ -301,19 +301,23 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
 
           {/* Technical Feature Toggles */}
           <div className="space-y-2 pt-2 border-t border-slate-800">
-            <label className="text-xs font-semibold text-slate-300 block">
-              Enabled Feature Vectors:
+            <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <span>Enabled Feature Vectors:</span>
+              <InfoTooltip title="Feature Vectors" text="Technical indicators fed into the neural network to identify buy and sell trading patterns." />
             </label>
             <div className="space-y-1.5">
               {[
-                { id: "rsi", label: "RSI Momentum (14)", val: useRsi, set: setUseRsi },
-                { id: "macd", label: "MACD Signal (12, 26, 9)", val: useMacd, set: setUseMacd },
-                { id: "ema", label: "EMA 20/50 Crossover", val: useEmaCross, set: setUseEmaCross },
-                { id: "vol", label: "Volume Spike Factor", val: useVolumeSpike, set: setUseVolumeSpike },
-                { id: "boll", label: "Bollinger Squeeze", val: useBollinger, set: setUseBollinger },
+                { id: "rsi", label: "RSI Momentum (14)", val: useRsi, set: setUseRsi, title: "RSI Momentum", info: "Speedometer of price changes. Above 70 means overbought (expensive); below 30 means oversold (discount price!)." },
+                { id: "macd", label: "MACD Signal (12, 26, 9)", val: useMacd, set: setUseMacd, title: "MACD Crossover", info: "Trend compass comparing fast vs slow moving averages. Signal crossover triggers buy/sell entries." },
+                { id: "ema", label: "EMA 20/50 Crossover", val: useEmaCross, set: setUseEmaCross, title: "EMA 20/50 Crossover", info: "Compares short-term vs long-term trend. When 20-day line rises above 50-day line, it confirms a bull trend." },
+                { id: "vol", label: "Volume Spike Factor", val: useVolumeSpike, set: setUseVolumeSpike, title: "Volume Surge", info: "Detects sudden unusual surges in volume indicating institutional accumulation or breakdown." },
+                { id: "boll", label: "Bollinger Squeeze", val: useBollinger, set: setUseBollinger, title: "Bollinger Squeeze", info: "Measures price volatility channels. Band squeezes precede major explosive price breakouts." },
               ].map((feat) => (
                 <label key={feat.id} className="flex items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/80 cursor-pointer hover:border-slate-700">
-                  <span className="text-xs text-slate-300 font-medium">{feat.label}</span>
+                  <span className="text-xs text-slate-300 font-medium flex items-center">
+                    {feat.label}
+                    <InfoTooltip title={feat.title} text={feat.info} />
+                  </span>
                   <input
                     type="checkbox"
                     checked={feat.val}
@@ -328,7 +332,10 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
           {/* Training Hyperparameter Controls */}
           <div className="space-y-2 pt-2 border-t border-slate-800">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-300">Training Epochs: {epochs}</label>
+              <label className="text-xs font-semibold text-slate-300 flex items-center">
+                Training Epochs: {epochs}
+                <InfoTooltip title="Training Epochs" text="Number of complete learning iterations over the historical dataset to minimize neural prediction error." />
+              </label>
               <span className="text-[10px] text-slate-500">10–100 iterations</span>
             </div>
             <input
@@ -556,13 +563,19 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
           {trainResult && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1">
-                <span className="text-[11px] font-medium text-slate-400">Model Accuracy</span>
+                <span className="text-[11px] font-medium text-slate-400 flex items-center">
+                  Model Accuracy
+                  <InfoTooltip title="Model Accuracy" text="Percentage of historical price direction predictions where the model correctly identified market direction." />
+                </span>
                 <div className="text-xl font-bold text-emerald-400">{trainResult.accuracy}%</div>
                 <span className="text-[10px] text-slate-500 block">F1 Score: {trainResult.f1Score}%</span>
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1">
-                <span className="text-[11px] font-medium text-slate-400">Backtest Strategy Return</span>
+                <span className="text-[11px] font-medium text-slate-400 flex items-center">
+                  Strategy Return
+                  <InfoTooltip title="Backtest Return" text="Total percentage profit generated by following ML Buy/Sell signals on historical data vs simple Buy & Hold." />
+                </span>
                 <div className="text-xl font-bold text-teal-300 flex items-center">
                   <ArrowUpRight className="w-4 h-4 mr-0.5 text-emerald-400" />
                   +{trainResult.backtest.totalReturnPct}%
@@ -573,7 +586,10 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1">
-                <span className="text-[11px] font-medium text-slate-400">Backtest Win Rate</span>
+                <span className="text-[11px] font-medium text-slate-400 flex items-center">
+                  Backtest Win Rate
+                  <InfoTooltip title="Win Rate" text="Out of all simulated trades executed by the model, the percentage that closed with a net profit." />
+                </span>
                 <div className="text-xl font-bold text-white">{trainResult.backtest.winRate}%</div>
                 <span className="text-[10px] text-slate-500 block">
                   {trainResult.backtest.totalTrades} Executed Trades
@@ -581,7 +597,10 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-1">
-                <span className="text-[11px] font-medium text-slate-400">Max Drawdown</span>
+                <span className="text-[11px] font-medium text-slate-400 flex items-center">
+                  Max Drawdown
+                  <InfoTooltip title="Max Drawdown & Profit Factor" text="Max Drawdown: Largest peak-to-trough drop in capital. Profit Factor: Total money won divided by total money lost (>1.5 is strong!)." />
+                </span>
                 <div className="text-xl font-bold text-rose-400">
                   -{trainResult.backtest.maxDrawdownPct}%
                 </div>
@@ -600,6 +619,7 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
                 <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
                   <Award className="w-3.5 h-3.5 text-amber-400" />
                   Epoch Loss Curve (Gradient Optimization)
+                  <InfoTooltip title="Epoch Loss Curve" text="Shows how prediction error decreases over training iterations. A declining curve means the neural model is learning effectively." />
                 </h4>
                 <div className="h-44 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -621,6 +641,7 @@ export const HistoricalTrainingTab: React.FC<HistoricalTrainingTabProps> = ({
                 <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-indigo-400" />
                   Feature Importance Weights
+                  <InfoTooltip title="Feature Importance" text="Shows which technical indicator influenced the model's decision the most during trading signal generation." />
                 </h4>
                 <div className="h-44 w-full">
                   <ResponsiveContainer width="100%" height="100%">

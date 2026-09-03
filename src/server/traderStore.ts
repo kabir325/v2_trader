@@ -22,6 +22,7 @@ import {
   PaperBotPosition,
   PaperBotTrade
 } from "../types.js";
+import { executeQuantMlPipeline, QuantPipelineResult } from "./quant/quantPipeline.js";
 import { growwClient } from "./growwClient.js";
 
 // Save Model Artifact JSON file to disk (/data/models/<index_or_symbol>_model.json)
@@ -1528,3 +1529,88 @@ export function stepPaperBot(): PaperBotState {
 
   return getPaperBotState();
 }
+
+// Global Store for Latest Quant ML Pipeline Execution
+let latestQuantResult: QuantPipelineResult | null = null;
+
+export async function runQuantMlPipelineForIndex(options: {
+  symbol?: string;
+  timeframe?: string;
+  tpPct?: number;
+  slPct?: number;
+  maxLookaheadCandles?: number;
+  probabilityThreshold?: number;
+}): Promise<QuantPipelineResult> {
+  const activeStore = getActiveIndexStore();
+  const symbol = options.symbol || activeStore.symbols[0] || "NIFTY 50";
+  const timeframe = options.timeframe || "3m";
+
+  // Fetch real historical candles
+  const rawCandles = await growwClient.getHistoricalOHLCV(symbol, timeframe as any, "1d");
+  if (!rawCandles || rawCandles.length === 0) {
+    throw new Error(`No historical market data found for ${symbol}`);
+  }
+
+  const tripleBarrier = {
+    tpPct: Number(options.tpPct) || 1.5,
+    slPct: Number(options.slPct) || 0.75,
+    maxLookaheadCandles: Number(options.maxLookaheadCandles) || 30,
+  };
+
+  const probThreshold = Number(options.probabilityThreshold) || 0.65;
+
+  const result = executeQuantMlPipeline(rawCandles, {
+    symbol,
+    timeframe,
+    tripleBarrier,
+    probabilityThreshold: probThreshold,
+  });
+
+  latestQuantResult = result;
+
+  systemEvents.unshift({
+    id: `evt-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    level: "INFO",
+    component: "quant_pipeline",
+    message: `[QUANT PIPELINE EXECUTED] Walk-Forward Ensemble Model persisted at ${result.modelFileSaved.relativePath}. Out-of-Sample Return: +${result.backtestComparison.strategyWithMlFilter.totalReturnPct}% (Sharpe: ${result.backtestComparison.strategyWithMlFilter.sharpeRatio}, Profit Factor: ${result.backtestComparison.strategyWithMlFilter.profitFactor}).`,
+  });
+
+  return result;
+}
+
+export function getLatestQuantPipelineResult(): QuantPipelineResult | null {
+  return latestQuantResult;
+}
+
+export function getSavedQuantModelFiles(): Array<{ filename: string; path: string; sizeBytes: number; modifiedAt: string; content?: any }> {
+  try {
+    const dirPath = path.join(process.cwd(), "data", "models");
+    if (!fs.existsSync(dirPath)) {
+      return [];
+    }
+    const files = fs.readdirSync(dirPath);
+    return files
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => {
+        const fullPath = path.join(dirPath, f);
+        const stat = fs.statSync(fullPath);
+        let parsed: any = null;
+        try {
+          const raw = fs.readFileSync(fullPath, "utf-8");
+          parsed = JSON.parse(raw);
+        } catch (_) {}
+
+        return {
+          filename: f,
+          path: `data/models/${f}`,
+          sizeBytes: stat.size,
+          modifiedAt: stat.mtime.toISOString(),
+          content: parsed,
+        };
+      });
+  } catch (err) {
+    return [];
+  }
+}
+

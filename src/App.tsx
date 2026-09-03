@@ -9,6 +9,9 @@ import { SystemConfigTab } from "./components/SystemConfigTab";
 import { MobileDashboard } from "./components/MobileDashboard";
 import { HistoricalTrainingTab } from "./components/HistoricalTrainingTab";
 import { PaperBotTab } from "./components/PaperBotTab";
+import { QuantPipelineTab } from "./components/QuantPipelineTab";
+import { InvestmentDashboard } from "./components/InvestmentDashboard";
+import { MicroDeliveryAlgoTab } from "./components/MicroDeliveryAlgoTab";
 import {
   PortfolioStats,
   Position,
@@ -20,10 +23,10 @@ import {
   SystemConfig,
   Heartbeat
 } from "./types";
-import { LayoutDashboard, Clock, Eye, Cpu, Terminal, Settings, GraduationCap, Bot } from "lucide-react";
+import { LayoutDashboard, Clock, Eye, Cpu, Terminal, Settings, GraduationCap, Bot, BrainCircuit, PiggyBank, Users } from "lucide-react";
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [activeTab, setActiveTab] = useState<string>("my_investments");
   const [currentPath, setCurrentPath] = useState<string>(window.location.pathname);
 
   useEffect(() => {
@@ -220,9 +223,12 @@ export default function App() {
   };
 
   const navTabs = [
-    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    { id: "my_investments", label: "My Stocks & SIP Portfolio", icon: PiggyBank },
+    { id: "micro_delivery_algo", label: "10-Customer Micro Algo", icon: Users },
+    { id: "overview", label: "Index Engine Overview", icon: LayoutDashboard },
     { id: "positions", label: "Positions & Trades", icon: Clock },
     { id: "watchlist", label: "Watchlist & Signals", icon: Eye },
+    { id: "quant", label: "Quant ML Pipeline", icon: BrainCircuit },
     { id: "historical", label: "Historical Training", icon: GraduationCap },
     { id: "paperbot", label: "Auto Paper Bot", icon: Bot },
     { id: "ml", label: "ML Model Status", icon: Cpu },
@@ -292,6 +298,14 @@ export default function App() {
         </div>
 
         {/* Tab Views */}
+        {activeTab === "my_investments" && (
+          <InvestmentDashboard />
+        )}
+
+        {activeTab === "micro_delivery_algo" && (
+          <MicroDeliveryAlgoTab />
+        )}
+
         {activeTab === "overview" && (
           <OverviewTab stats={stats} equityCurve={equityCurve} watchlist={watchlist} />
         )}
@@ -307,6 +321,13 @@ export default function App() {
             onAddStock={handleAddStock}
             onToggleStock={handleToggleStock}
             onDeleteStock={handleDeleteStock}
+          />
+        )}
+
+        {activeTab === "quant" && (
+          <QuantPipelineTab
+            availableIndexes={stats?.availableIndexes || []}
+            selectedIndex={stats?.selectedIndex || "nifty_50"}
           />
         )}
 

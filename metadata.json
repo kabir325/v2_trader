@@ -1,6 +1,6 @@
 {
   "name": "My Money Maker - Algorithmic Paper & Live Trader",
-  "description": "Paper trading and ML algorithmic trading dashboard for NSE stocks with real-time portfolio analytics, signal generation, watchlist management, and system logs.",
+  "description": "Personal stocks & SIP investment portfolio tracker with daily market open and EOD accounting, plus a multi-customer delivery algorithmic trading engine.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

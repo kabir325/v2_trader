@@ -198,6 +198,7 @@ export interface SystemConfig {
 
 export interface HistoricalCandleData {
   timestamp: string;
+  time?: string;
   date: string;
   open: number;
   high: number;
@@ -311,4 +312,158 @@ export interface PaperBotState {
     bestTradeSymbol: string;
     bestTradePnlPct: number;
   };
+}
+
+// ================= USER INVESTMENT & SIP TRACKING TYPES =================
+
+export interface StockInvestment {
+  id: string;
+  symbol: string;
+  name: string;
+  quantity: number;
+  buyPrice: number;
+  currentPrice: number;
+  investedAmount: number;
+  currentValue: number;
+  unrealizedPnl: number;
+  unrealizedPnlPct: number;
+  dayChangePct: number;
+  sector: string;
+  purchaseDate: string;
+}
+
+export interface SipInvestment {
+  id: string;
+  fundName: string;
+  category: "Equity" | "Debt" | "Hybrid" | "Index Fund" | "Large Cap" | "Flexi Cap";
+  frequency: "Daily" | "Weekly" | "Monthly";
+  installmentAmount: number;
+  totalInstallments: number;
+  investedAmount: number;
+  units: number;
+  avgNav: number;
+  currentNav: number;
+  currentValue: number;
+  unrealizedPnl: number;
+  unrealizedPnlPct: number;
+  dayChangePct: number;
+  nextSipDate: string;
+  startDate: string;
+  status: "ACTIVE" | "PAUSED";
+}
+
+export interface AccountingSnapshot {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM:SS
+  sessionType: "MARKET_OPEN" | "MARKET_CLOSE"; // 09:15 AM vs 03:30 PM
+  label: string; // e.g. "Morning Open (09:15 AM)" or "End of Day (03:30 PM)"
+  totalInvested: number;
+  stocksInvested: number;
+  sipInvested: number;
+  totalCurrentValue: number;
+  stocksCurrentValue: number;
+  sipCurrentValue: number;
+  totalPnl: number;
+  totalPnlPct: number;
+  dayChangeAmount: number;
+  dayChangePct: number;
+  notes?: string;
+}
+
+export interface InvestmentPortfolioData {
+  stocks: StockInvestment[];
+  sips: SipInvestment[];
+  accountingHistory: AccountingSnapshot[];
+  summary: {
+    totalInvested: number;
+    totalCurrentValue: number;
+    totalPnl: number;
+    totalPnlPct: number;
+    dayChangeAmount: number;
+    dayChangePct: number;
+    stocksInvested: number;
+    stocksValue: number;
+    sipInvested: number;
+    sipValue: number;
+    lastAccountingSession: "MARKET_OPEN" | "MARKET_CLOSE" | "NONE";
+    lastAccountingTimestamp: string;
+  };
+}
+
+// ================= 10-CUSTOMER MICRO-DELIVERY ALGO TYPES =================
+
+export interface MicroDeliveryStock {
+  symbol: string;
+  name: string;
+  currentPrice: number;
+  previousClose: number;
+  dayChangePct: number;
+  sector: string;
+}
+
+export interface MicroCustomerHolding {
+  id: string;
+  symbol: string;
+  stockName: string;
+  quantity: number;
+  buyPrice: number;
+  currentPrice: number;
+  investedAmount: number;
+  currentValue: number;
+  pnlAmount: number;
+  pnlPct: number;
+  targetPrice5Pct: number;
+  buyDate: string;
+  buyTime: string;
+  isEligibleFor5PctExit: boolean;
+}
+
+export interface MicroCustomerTrade {
+  id: string;
+  customerId: string;
+  customerName: string;
+  symbol: string;
+  stockName: string;
+  quantity: number;
+  buyPrice: number;
+  sellPrice: number;
+  investedAmount: number;
+  realizedAmount: number;
+  profitAmount: number;
+  profitPct: number;
+  buyTimestamp: string;
+  sellTimestamp: string;
+  exitReason: string;
+}
+
+export interface MicroCustomer {
+  id: string;
+  name: string;
+  avatarColor: string;
+  initialCapital: number; // strictly < 100 Rs
+  cashBalance: number;    // available liquid cash to buy next morning
+  investedValue: number;  // current value of active delivery holdings
+  totalNetWorth: number;  // cashBalance + investedValue
+  realizedProfit: number; // accumulated profit from >5% sells
+  totalTrades: number;
+  winningTrades: number;
+  activeHoldings: MicroCustomerHolding[];
+}
+
+export interface MicroDeliveryAlgoState {
+  dayCount: number;
+  currentDate: string;
+  marketPhase: "PRE_OPEN" | "MARKET_OPEN" | "INTRADAY" | "MARKET_CLOSE";
+  targetProfitPct: number; // strictly 5%
+  maxCustomerBudget: number; // < 100 Rs
+  customers: MicroCustomer[];
+  recentTrades: MicroCustomerTrade[];
+  stockUniverse: MicroDeliveryStock[];
+  totalAlgoCapital: number; // sum of initial capitals (< 1000 Rs)
+  totalCurrentValue: number;
+  totalRealizedProfit: number;
+  totalActivePositions: number;
+  autoTickEnabled: boolean;
+  lastRunTimestamp: string;
 }

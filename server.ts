@@ -22,10 +22,15 @@ import {
   getPaperBotState,
   updatePaperBotConfig,
   resetPaperBot,
-  stepPaperBot
+  stepPaperBot,
+  runQuantMlPipelineForIndex,
+  getLatestQuantPipelineResult,
+  getSavedQuantModelFiles
 } from "./src/server/traderStore.js";
 
 import { growwClient } from "./src/server/growwClient.js";
+import { investmentStore } from "./src/server/investmentStore.js";
+import { microDeliveryAlgoStore } from "./src/server/microDeliveryAlgoStore.js";
 
 async function startServer() {
   const app = express();
@@ -284,6 +289,46 @@ async function startServer() {
     res.json(getMlStatus());
   });
 
+  // Quant ML Pipeline Endpoints
+  app.post("/api/quant/run-pipeline", async (req, res) => {
+    try {
+      const result = await runQuantMlPipelineForIndex(req.body || {});
+      res.json({ success: true, result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to execute Quant ML Pipeline" });
+    }
+  });
+
+  app.get("/api/quant/latest", (_req, res) => {
+    const latest = getLatestQuantPipelineResult();
+    res.json({ latest });
+  });
+
+  app.get("/api/quant/model-files", (_req, res) => {
+    const files = getSavedQuantModelFiles();
+    res.json({ files });
+  });
+
+  // Quant ML Pipeline Endpoints
+  app.post("/api/quant/run-pipeline", async (req, res) => {
+    try {
+      const result = await runQuantMlPipelineForIndex(req.body || {});
+      res.json({ success: true, result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to execute Quant ML Pipeline" });
+    }
+  });
+
+  app.get("/api/quant/latest", (_req, res) => {
+    const latest = getLatestQuantPipelineResult();
+    res.json({ latest });
+  });
+
+  app.get("/api/quant/model-files", (_req, res) => {
+    const files = getSavedQuantModelFiles();
+    res.json({ files });
+  });
+
   // System Logs & DB Events
   app.get("/api/logs", (req, res) => {
     const file = (req.query.file as string) || "trading.log";
@@ -420,6 +465,121 @@ WantedBy=multi-user.target
       res.setHeader("Content-Disposition", `attachment; filename=active_positions_${store.id}.csv`);
       return res.send(csv);
     }
+  });
+
+  // ==================== PERSONAL INVESTMENTS & SIP API ====================
+
+  // Get investment portfolio data (stocks, sips, accounting history, summary)
+  app.get("/api/investments", (_req, res) => {
+    res.json(investmentStore.getPortfolioData());
+  });
+
+  // Record accounting snapshot for Market Open or Market Close (EOD)
+  app.post("/api/investments/snapshot", (req, res) => {
+    const { sessionType, notes } = req.body;
+    if (sessionType !== "MARKET_OPEN" && sessionType !== "MARKET_CLOSE") {
+      return res.status(400).json({ error: "sessionType must be 'MARKET_OPEN' or 'MARKET_CLOSE'" });
+    }
+    const snapshot = investmentStore.recordAccountingSnapshot(sessionType, notes);
+    res.json({ success: true, snapshot, portfolio: investmentStore.getPortfolioData() });
+  });
+
+  // Add stock investment
+  app.post("/api/investments/add-stock", (req, res) => {
+    const { symbol, name, quantity, buyPrice, currentPrice, sector } = req.body;
+    if (!symbol || !name || !quantity || !buyPrice) {
+      return res.status(400).json({ error: "Missing required fields for stock investment" });
+    }
+    const newStock = investmentStore.addStock({
+      symbol,
+      name,
+      quantity: Number(quantity),
+      buyPrice: Number(buyPrice),
+      currentPrice: Number(currentPrice || buyPrice),
+      sector: sector || "Equity"
+    });
+    res.json({ success: true, stock: newStock, portfolio: investmentStore.getPortfolioData() });
+  });
+
+  // Delete stock investment
+  app.delete("/api/investments/stock/:id", (req, res) => {
+    const success = investmentStore.deleteStock(req.params.id);
+    res.json({ success, portfolio: investmentStore.getPortfolioData() });
+  });
+
+  // Add SIP investment
+  app.post("/api/investments/add-sip", (req, res) => {
+    const { fundName, category, frequency, installmentAmount, totalInstallments, units, avgNav, currentNav } = req.body;
+    if (!fundName || !installmentAmount) {
+      return res.status(400).json({ error: "Missing required fields for SIP investment" });
+    }
+    const newSip = investmentStore.addSip({
+      fundName,
+      category: category || "Flexi Cap",
+      frequency: frequency || "Monthly",
+      installmentAmount: Number(installmentAmount),
+      totalInstallments: Number(totalInstallments || 1),
+      units: Number(units || (installmentAmount / (currentNav || 100))),
+      avgNav: Number(avgNav || currentNav || 100),
+      currentNav: Number(currentNav || 100)
+    });
+    res.json({ success: true, sip: newSip, portfolio: investmentStore.getPortfolioData() });
+  });
+
+  // Delete SIP investment
+  app.delete("/api/investments/sip/:id", (req, res) => {
+    const success = investmentStore.deleteSip(req.params.id);
+    res.json({ success, portfolio: investmentStore.getPortfolioData() });
+  });
+
+  // Tick market prices for user investments
+  app.post("/api/investments/tick", (_req, res) => {
+    investmentStore.tickMarketPrices();
+    res.json(investmentStore.getPortfolioData());
+  });
+
+  // ==================== 10-CUSTOMER MICRO-DELIVERY ALGO API ====================
+
+  // Get current algo state
+  app.get("/api/micro-algo/state", (_req, res) => {
+    res.json(microDeliveryAlgoStore.getState());
+  });
+
+  // Execute Morning Market Open Cycle (random stock delivery buy for all 10 customers)
+  app.post("/api/micro-algo/morning-open", (_req, res) => {
+    const result = microDeliveryAlgoStore.executeMorningMarketOpenCycle();
+    res.json({
+      success: true,
+      result,
+      state: microDeliveryAlgoStore.getState()
+    });
+  });
+
+  // Tick / Intraday price movement & automated > 5% profit exit evaluation
+  app.post("/api/micro-algo/tick", (req, res) => {
+    const volatilityFactor = Number(req.body.volatility) || 1.0;
+    const tickResult = microDeliveryAlgoStore.tickMarketPrices(volatilityFactor);
+    res.json({
+      success: true,
+      tickResult,
+      state: microDeliveryAlgoStore.getState()
+    });
+  });
+
+  // Advance to next day morning & run morning open buy cycle
+  app.post("/api/micro-algo/advance-day", (_req, res) => {
+    const advanceResult = microDeliveryAlgoStore.advanceToNextDayMorning();
+    res.json({
+      success: true,
+      advanceResult,
+      state: microDeliveryAlgoStore.getState()
+    });
+  });
+
+  // Reset algorithm to clean initial state (< 100 Rs each, total < 1000 Rs)
+  app.post("/api/micro-algo/reset", (_req, res) => {
+    const state = microDeliveryAlgoStore.resetAlgo();
+    res.json({ success: true, state });
   });
 
   // ==================== VITE MIDDLEWARE ====================

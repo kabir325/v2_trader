@@ -93,29 +93,63 @@ const POPULAR_FUNDS = [
   { name: "HDFC Mid-Cap Opportunities Fund - Direct Growth", category: "Equity", nav: 178.2 }
 ];
 
-// Safe API fetcher that guarantees never throwing "Unexpected token <"
-async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<{ data: T | null; error: string | null }> {
-  try {
-    const res = await fetch(url, options);
-    const contentType = res.headers.get("content-type") || "";
+// Safe API fetcher that guarantees never throwing "Unexpected token <" with auto-retry for server restarts
+async function safeFetchJson<T>(
+  url: string,
+  options?: RequestInit,
+  retries: number = 2
+): Promise<{ data: T | null; error: string | null; statusCode?: number }> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      const contentType = res.headers.get("content-type") || "";
 
-    if (!res.ok) {
-      if (contentType.includes("application/json")) {
-        const errJson = await res.json().catch(() => ({}));
-        return { data: null, error: errJson.error || `Request failed with status ${res.status}` };
+      if (!res.ok) {
+        if (contentType.includes("application/json")) {
+          const errJson = await res.json().catch(() => ({}));
+          return {
+            data: null,
+            error: errJson.error || errJson.message || `Request failed with status ${res.status}`,
+            statusCode: res.status,
+          };
+        }
+
+        // If server is reloading (returned HTML 404 or 502/503), wait and retry
+        if (attempt < retries && (res.status === 404 || res.status === 502 || res.status === 503)) {
+          await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+          continue;
+        }
+
+        return {
+          data: null,
+          error: `Server is initializing or temporarily unavailable (HTTP ${res.status}). Please try again in a few seconds.`,
+          statusCode: res.status,
+        };
       }
-      return { data: null, error: `Server temporarily syncing (HTTP ${res.status}). Refreshing...` };
-    }
 
-    if (!contentType.includes("application/json")) {
-      return { data: null, error: "Received HTML instead of JSON. Backend may be initializing." };
-    }
+      if (!contentType.includes("application/json")) {
+        if (attempt < retries) {
+          await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+          continue;
+        }
+        return {
+          data: null,
+          error: "Received HTML instead of JSON. Backend service may be initializing.",
+          statusCode: 503,
+        };
+      }
 
-    const data = await res.json();
-    return { data, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || "Network connection error" };
+      const data = await res.json();
+      return { data, error: null, statusCode: res.status };
+    } catch (err: any) {
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+        continue;
+      }
+      return { data: null, error: err.message || "Network connection error", statusCode: 500 };
+    }
   }
+  return { data: null, error: "Network request failed. Please check connection.", statusCode: 500 };
 }
 
 export const InvestmentDashboard: React.FC = () => {
@@ -265,7 +299,7 @@ export const InvestmentDashboard: React.FC = () => {
     try {
       setTestingToken(true);
       setTokenVerifyResult(null);
-      const { data, error: testErr } = await safeFetchJson<{
+      const { data, error: testErr, statusCode: errStatus } = await safeFetchJson<{
         success: boolean;
         message: string;
         statusCode?: number;
@@ -282,8 +316,8 @@ export const InvestmentDashboard: React.FC = () => {
       if (testErr) {
         setTokenVerifyResult({
           success: false,
-          statusCode: 500,
-          message: `Network verification error: ${testErr}`
+          statusCode: errStatus || 503,
+          message: testErr
         });
       } else if (data) {
         setTokenVerifyResult({

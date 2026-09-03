@@ -28,7 +28,7 @@ import {
   getSavedQuantModelFiles
 } from "./src/server/traderStore.js";
 
-import { growwClient } from "./src/server/growwClient.js";
+import { growwClient, GrowwClient } from "./src/server/growwClient.js";
 import { investmentStore } from "./src/server/investmentStore.js";
 import { microDeliveryAlgoStore } from "./src/server/microDeliveryAlgoStore.js";
 
@@ -538,8 +538,53 @@ WantedBy=multi-user.target
     res.setHeader("Content-Type", "application/json");
     res.json({
       success: true,
-      credentials: growwClient.getCredentialsStatus()
+      credentials: growwClient.getCredentialsStatus(),
+      token: config.credentials.groww_api_token || "",
+      secret: config.credentials.groww_api_secret || "",
+      totpKey: config.credentials.groww_totp_key || ""
     });
+  });
+
+  // Verify Groww token without saving/modifying state
+  app.post("/api/investments/verify-groww-token", async (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { token, secret } = req.body || {};
+      const testToken = (token || config.credentials.groww_api_token || "").trim();
+      const testSecret = (secret !== undefined ? secret : (config.credentials.groww_api_secret || "")).trim();
+
+      if (!testToken || testToken.length < 5) {
+        return res.json({
+          success: false,
+          statusCode: 400,
+          message: "Please enter a valid Groww API token to verify."
+        });
+      }
+
+      const tempClient = new GrowwClient(testToken, testSecret);
+      const holdingsRes = await tempClient.getUserHoldings();
+
+      if (holdingsRes.success) {
+        res.json({
+          success: true,
+          statusCode: holdingsRes.statusCode || 200,
+          holdingsCount: holdingsRes.holdings.length,
+          message: `Connection successful! Token is valid. Groww returned ${holdingsRes.holdings.length} equity holding(s).`
+        });
+      } else {
+        res.json({
+          success: false,
+          statusCode: holdingsRes.statusCode || 400,
+          message: holdingsRes.error || "Token verification failed."
+        });
+      }
+    } catch (err: any) {
+      res.json({
+        success: false,
+        statusCode: 500,
+        message: err.message || "Network error while connecting to Groww API."
+      });
+    }
   });
 
   // Update Groww credentials directly
@@ -568,14 +613,14 @@ WantedBy=multi-user.target
     res.setHeader("Content-Type", "application/json");
     try {
       const { token, secret, totpKey } = req.body || {};
-      if (token) {
-        config.credentials.groww_api_token = token;
-        if (secret !== undefined) config.credentials.groww_api_secret = secret;
-        if (totpKey !== undefined) config.credentials.groww_totp_key = totpKey;
+      if (token && token.trim()) {
+        config.credentials.groww_api_token = token.trim();
+        if (secret !== undefined) config.credentials.groww_api_secret = secret.trim();
+        if (totpKey !== undefined) config.credentials.groww_totp_key = totpKey.trim();
         growwClient.updateCredentials(
-          token,
-          secret !== undefined ? secret : config.credentials.groww_api_secret || "",
-          totpKey !== undefined ? totpKey : config.credentials.groww_totp_key || ""
+          config.credentials.groww_api_token,
+          config.credentials.groww_api_secret || "",
+          config.credentials.groww_totp_key || ""
         );
       }
 

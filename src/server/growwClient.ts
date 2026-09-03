@@ -50,20 +50,28 @@ export class GrowwClient {
   private totpKey: string;
   private isConnected: boolean = false;
 
+  private sanitizeToken(token?: string): string {
+    if (!token) return "";
+    let t = token.trim();
+    t = t.replace(/^Bearer\s+/i, "");
+    t = t.replace(/^["']|["']$/g, "").trim();
+    return t;
+  }
+
   constructor(token?: string, secret?: string, totpKey?: string) {
-    this.token = token || process.env.GROWW_API_TOKEN || "";
-    this.secret = secret || process.env.GROWW_API_SECRET || "";
-    this.totpKey = totpKey || process.env.GROWW_TOTP_KEY || "";
-    if (this.token && this.token !== "grw_live_demo_key_998811") {
+    this.token = this.sanitizeToken(token || process.env.GROWW_API_TOKEN || "");
+    this.secret = (secret || process.env.GROWW_API_SECRET || "").trim();
+    this.totpKey = (totpKey || process.env.GROWW_TOTP_KEY || "").trim();
+    if (this.token && this.token !== "grw_live_demo_key_998811" && this.token.length > 5) {
       this.isConnected = true;
     }
   }
 
   public updateCredentials(token: string, secret: string, totpKey: string) {
-    this.token = token;
-    this.secret = secret;
-    this.totpKey = totpKey;
-    this.isConnected = Boolean(token && token.length > 5);
+    this.token = this.sanitizeToken(token);
+    this.secret = (secret || "").trim();
+    this.totpKey = (totpKey || "").trim();
+    this.isConnected = Boolean(this.token && this.token.length > 5 && this.token !== "grw_live_demo_key_998811");
   }
 
   public getCredentialsStatus(): { hasToken: boolean; tokenPreview: string; hasSecret: boolean; hasTotp: boolean } {
@@ -83,40 +91,44 @@ export class GrowwClient {
     const cleanSym = symbol.toUpperCase().trim();
     const nowIso = new Date().toISOString();
 
-    // 1. If live token provided, attempt official Groww Developer API
+    // 1. If live token provided, attempt official Groww Developer Live Data API
     if (this.token && this.token.length > 5 && this.token !== "grw_live_demo_key_998811") {
       try {
-        const response = await fetch(`https://api.groww.in/v1/margins/nse/quotes/${cleanSym}`, {
+        const response = await fetch(`https://api.groww.in/v1/live-data/quote?exchange=NSE&segment=CASH&trading_symbol=${encodeURIComponent(cleanSym)}`, {
+          signal: AbortSignal.timeout(4000),
           headers: {
             Authorization: `Bearer ${this.token}`,
-            "X-App-Secret": this.secret,
-            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-API-VERSION": "1.0",
+            ...(this.secret ? { "X-App-Secret": this.secret, "X-API-KEY": this.secret } : {}),
           },
         });
         if (response.ok) {
           const data: any = await response.json();
-          const ltp = Number(data.ltp || data.lastPrice || data.closePrice || 0);
+          const quoteObj = data.payload || data.quote || data;
+          const ltp = Number(quoteObj.ltp || quoteObj.last_price || quoteObj.lastPrice || quoteObj.closePrice || 0);
           if (ltp > 0) {
             return {
               symbol: cleanSym,
               ltp,
-              open: Number(data.open || ltp),
-              high: Number(data.high || ltp * 1.01),
-              low: Number(data.low || ltp * 0.99),
-              close: Number(data.close || ltp),
-              volume: Number(data.volume || 1000000),
+              open: Number(quoteObj.open || quoteObj.day_open || ltp),
+              high: Number(quoteObj.high || quoteObj.day_high || ltp * 1.01),
+              low: Number(quoteObj.low || quoteObj.day_low || ltp * 0.99),
+              close: Number(quoteObj.close || quoteObj.prev_close || ltp),
+              volume: Number(quoteObj.volume || quoteObj.day_volume || 1000000),
               timestamp: nowIso,
             };
           }
         }
       } catch (err) {
-        console.warn(`Groww Developer API call failed for ${cleanSym}, trying public live endpoint...`);
+        // Fall through to public live endpoint
       }
     }
 
     // 2. Try Groww Public Live Price Endpoint
     try {
-      const publicRes = await fetch(`https://groww.in/v1/api/stocks_data/v1/tr_live_prices/exchange/NSE/segment/CASH/${cleanSym}/latest`, {
+      const publicRes = await fetch(`https://groww.in/v1/api/stocks_data/v1/tr_live_prices/exchange/NSE/segment/CASH/${encodeURIComponent(cleanSym)}/latest`, {
+        signal: AbortSignal.timeout(4000),
         headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" }
       });
       if (publicRes.ok) {
@@ -135,13 +147,14 @@ export class GrowwClient {
           };
         }
       }
-    } catch (err) {
+    } catch {
       // Ignore and proceed to next fallback
     }
 
     // 3. Try Yahoo Finance NSE Live Feed
     try {
-      const yfRes = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${cleanSym}.NS?interval=1m&range=1d`, {
+      const yfRes = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSym)}.NS?interval=1m&range=1d`, {
+        signal: AbortSignal.timeout(4000),
         headers: { "User-Agent": "Mozilla/5.0" }
       });
       if (yfRes.ok) {
@@ -161,7 +174,7 @@ export class GrowwClient {
           };
         }
       }
-    } catch (err) {
+    } catch {
       // Proceed to base price map
     }
 
@@ -199,93 +212,100 @@ export class GrowwClient {
   /**
    * Fetch Real User Equity Holdings from Groww API
    */
-  public async getUserHoldings(): Promise<{ success: boolean; holdings: any[]; error?: string }> {
+  public async getUserHoldings(): Promise<{ success: boolean; holdings: any[]; error?: string; statusCode?: number }> {
     if (!this.token || this.token === "grw_live_demo_key_998811" || this.token.length < 5) {
       return {
         success: false,
         holdings: [],
-        error: "Groww API token is not configured. Please enter your valid Groww API token in System Config."
+        error: "Groww API token is not configured. Please enter your valid Groww API token.",
+        statusCode: 400
       };
     }
 
-    const endpoints = [
-      "https://api.groww.in/v1/holdings/user",
-      "https://api.groww.in/v1/margins/user/holdings",
-      "https://groww.in/v1/api/stocks_data/v1/holdings/user"
-    ];
-
-    for (const endpoint of endpoints) {
-      try {
-        const res = await fetch(endpoint, {
-          signal: AbortSignal.timeout(5000),
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            "X-App-Secret": this.secret,
-            "Content-Type": "application/json",
-          }
-        });
-        if (res.ok) {
-          const data: any = await res.json();
-          const list = Array.isArray(data) ? data : (data.holdings || data.data || data.user_holdings || []);
-          if (Array.isArray(list)) {
-            return { success: true, holdings: list };
-          }
-        }
-      } catch {
-        // continue to next endpoint
-      }
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.token}`,
+      Accept: "application/json",
+      "X-API-VERSION": "1.0",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GrowwTrader/1.0",
+    };
+    if (this.secret) {
+      headers["X-App-Secret"] = this.secret;
+      headers["X-API-KEY"] = this.secret;
     }
 
-    return {
-      success: false,
-      holdings: [],
-      error: "Could not fetch holdings from Groww. Check your token and credentials."
-    };
+    try {
+      const res = await fetch("https://api.groww.in/v1/holdings/user", {
+        method: "GET",
+        signal: AbortSignal.timeout(8000),
+        headers
+      });
+
+      if (res.ok) {
+        const data: any = await res.json();
+        let list: any[] = [];
+        if (Array.isArray(data)) {
+          list = data;
+        } else if (data.payload && Array.isArray(data.payload.holdings)) {
+          list = data.payload.holdings;
+        } else if (Array.isArray(data.holdings)) {
+          list = data.holdings;
+        } else if (Array.isArray(data.data)) {
+          list = data.data;
+        } else if (Array.isArray(data.user_holdings)) {
+          list = data.user_holdings;
+        }
+
+        return { success: true, holdings: list, statusCode: res.status };
+      }
+
+      // Handle non-200 responses with exact Groww error diagnostics
+      let errorMsg = `Groww API returned HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson.errorMessage?.message) {
+          errorMsg = `Groww error (${res.status}): ${errJson.errorMessage.message}`;
+        } else if (errJson.message) {
+          errorMsg = `Groww error (${res.status}): ${errJson.message}`;
+        } else if (errJson.error) {
+          errorMsg = `Groww error (${res.status}): ${errJson.error}`;
+        }
+      } catch {
+        const txt = await res.text().catch(() => "");
+        if (txt) errorMsg += `: ${txt.slice(0, 100)}`;
+      }
+
+      if (res.status === 401) {
+        errorMsg = "Groww authentication failed (HTTP 401). Your Groww token is invalid or expired. Generate a fresh API key from Groww (Profile → Settings → Trading APIs) or use the 'Import Groww CSV' tab.";
+      } else if (res.status === 403) {
+        errorMsg = "Groww API access forbidden (HTTP 403). Developer trading API may not be enabled on your Groww account. Please verify in Groww settings or import your Holdings CSV.";
+      } else if (res.status === 404) {
+        errorMsg = "Groww API endpoint returned 404. Your trading account or Demat has no active holdings recorded on Groww.";
+      }
+
+      return {
+        success: false,
+        holdings: [],
+        error: errorMsg,
+        statusCode: res.status
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        holdings: [],
+        error: `Could not connect to Groww API: ${err.message || "Network timeout"}. Please check your connection or use the CSV Import tab.`,
+        statusCode: 500
+      };
+    }
   }
 
   /**
-   * Fetch Real User SIPs from Groww API
+   * Fetch Real User SIPs (Groww Trading API does not expose MF SIPs via REST)
    */
   public async getUserSips(): Promise<{ success: boolean; sips: any[]; error?: string }> {
-    if (!this.token || this.token === "grw_live_demo_key_998811" || this.token.length < 5) {
-      return {
-        success: false,
-        sips: [],
-        error: "Groww API token is not configured."
-      };
-    }
-
-    const endpoints = [
-      "https://api.groww.in/v1/mutual_funds/user/sips",
-      "https://groww.in/v1/api/stocks_data/v1/mutual_funds/user/sips"
-    ];
-
-    for (const endpoint of endpoints) {
-      try {
-        const res = await fetch(endpoint, {
-          signal: AbortSignal.timeout(5000),
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            "X-App-Secret": this.secret,
-            "Content-Type": "application/json",
-          }
-        });
-        if (res.ok) {
-          const data: any = await res.json();
-          const list = Array.isArray(data) ? data : (data.sips || data.data || []);
-          if (Array.isArray(list)) {
-            return { success: true, sips: list };
-          }
-        }
-      } catch {
-        // continue to next endpoint
-      }
-    }
-
+    // Groww's official Trading API is focused on equities. Return empty array gracefully without 404.
     return {
-      success: false,
-      sips: [],
-      error: "Could not fetch SIPs from Groww."
+      success: true,
+      sips: []
     };
   }
 
@@ -297,38 +317,48 @@ export class GrowwClient {
 
     if (isLiveMode && this.isConnected) {
       try {
-        const response = await fetch("https://api.groww.in/v1/orders/place", {
+        const response = await fetch("https://api.groww.in/v1/order/create", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${this.token}`,
-            "X-App-Secret": this.secret,
+            Accept: "application/json",
+            "X-API-VERSION": "1.0",
             "Content-Type": "application/json",
+            ...(this.secret ? { "X-App-Secret": this.secret, "X-API-KEY": this.secret } : {}),
           },
           body: JSON.stringify({
-            tradingSymbol: order.symbol,
+            trading_symbol: order.symbol,
             exchange: "NSE",
-            transactionType: order.side,
-            orderType: order.orderType,
+            transaction_type: order.side,
+            order_type: order.orderType,
             quantity: order.qty,
             price: order.price || 0,
-            product: "MIS", // Intraday / Margin
+            segment: "CASH",
+            product: "CNC", // Cash & Carry delivery
           }),
         });
 
         if (response.ok) {
           const data: any = await response.json();
           return {
-            orderId: data.orderId || orderId,
+            orderId: data.groww_order_id || data.orderId || orderId,
             status: "SUCCESS",
-            message: `Live Order ${order.side} ${order.qty} ${order.symbol} executed successfully on NSE`,
+            message: `Live Order ${order.side} ${order.qty} ${order.symbol} placed successfully on Groww NSE`,
             executedPrice: data.price || order.price,
           };
         }
+
+        const errData = await response.json().catch(() => ({}));
+        return {
+          orderId,
+          status: "REJECTED",
+          message: errData.errorMessage?.message || errData.message || `Groww rejected order with HTTP ${response.status}`,
+        };
       } catch (err: any) {
         return {
           orderId,
           status: "REJECTED",
-          message: `Groww API error: ${err.message || "Network Timeout"}`,
+          message: `Groww API network error: ${err.message || "Network Timeout"}`,
         };
       }
     }

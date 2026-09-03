@@ -83,10 +83,10 @@ class InvestmentStore {
       const holdingsRes = await growwClient.getUserHoldings();
       const sipsRes = await growwClient.getUserSips();
 
-      if (!holdingsRes.success && !sipsRes.success) {
+      if (!holdingsRes.success) {
         return {
           success: false,
-          message: holdingsRes.error || "Failed to fetch portfolio from Groww API. Check your Groww API credentials in System Config.",
+          message: holdingsRes.error || "Failed to fetch portfolio from Groww API. Check your token or import your exported Holdings CSV.",
           stockCount: 0,
           sipCount: 0
         };
@@ -95,17 +95,19 @@ class InvestmentStore {
       let importedStocks = 0;
       if (holdingsRes.success && Array.isArray(holdingsRes.holdings) && holdingsRes.holdings.length > 0) {
         this.stocks = holdingsRes.holdings.map((h: any, idx: number) => {
-          const qty = Number(h.quantity || h.qty || 0);
-          const buyPrice = Number(h.averagePrice || h.avgPrice || h.buyPrice || 0);
-          const currentPrice = Number(h.ltp || h.closePrice || h.lastPrice || buyPrice);
+          const qty = Number(h.quantity ?? h.qty ?? h.net_quantity ?? h.demat_free_quantity ?? 0);
+          const buyPrice = Number(h.average_price ?? h.averagePrice ?? h.avgPrice ?? h.buyPrice ?? 0);
+          const currentPrice = Number(h.ltp ?? h.closePrice ?? h.lastPrice ?? h.last_price ?? buyPrice);
           const invested = Math.round(qty * buyPrice * 100) / 100;
           const currentVal = Math.round(qty * currentPrice * 100) / 100;
           const pnl = Math.round((currentVal - invested) * 100) / 100;
           const pnlPct = invested > 0 ? Math.round((pnl / invested) * 10000) / 100 : 0;
+          const sym = (h.trading_symbol ?? h.tradingSymbol ?? h.symbol ?? "UNKNOWN").toUpperCase();
+          const name = h.company_name ?? h.companyName ?? h.name ?? sym;
           return {
             id: `groww-stk-${idx}-${Date.now()}`,
-            symbol: (h.tradingSymbol || h.symbol || "UNKNOWN").toUpperCase(),
-            name: h.companyName || h.name || h.tradingSymbol || "Stock Holding",
+            symbol: sym,
+            name: name,
             quantity: qty,
             buyPrice,
             currentPrice,
@@ -113,9 +115,9 @@ class InvestmentStore {
             currentValue: currentVal,
             unrealizedPnl: pnl,
             unrealizedPnlPct: pnlPct,
-            dayChangePct: Number(h.dayChangePercentage || 0),
+            dayChangePct: Number(h.day_change_percentage ?? h.dayChangePercentage ?? 0),
             sector: h.sector || "Equity",
-            purchaseDate: h.purchaseDate || new Date().toISOString().slice(0, 10)
+            purchaseDate: h.purchase_date || h.purchaseDate || new Date().toISOString().slice(0, 10)
           };
         });
         importedStocks = this.stocks.length;
@@ -157,9 +159,14 @@ class InvestmentStore {
       }
 
       this.saveToDisk();
+
+      const message = importedStocks > 0
+        ? `Successfully synchronized ${importedStocks} holdings from your Groww Demat account.`
+        : "Groww API connected successfully, but 0 stock holdings were found in your Demat. If you have holdings on Groww, you can also use the 'Import Groww CSV' tab to upload your exported holdings statement.";
+
       return {
         success: true,
-        message: `Successfully synchronized ${importedStocks} stocks and ${importedSips} SIPs from Groww API.`,
+        message,
         stockCount: importedStocks,
         sipCount: importedSips
       };

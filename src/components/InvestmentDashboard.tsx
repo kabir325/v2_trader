@@ -146,6 +146,8 @@ export const InvestmentDashboard: React.FC = () => {
   const [csvFileName, setCsvFileName] = useState("");
   const [importingCsv, setImportingCsv] = useState(false);
   const [savingGrowwKeys, setSavingGrowwKeys] = useState(false);
+  const [testingToken, setTestingToken] = useState(false);
+  const [tokenVerifyResult, setTokenVerifyResult] = useState<{ success: boolean; message: string; statusCode?: number } | null>(null);
 
   // New Stock Form
   const [newStockSymbol, setNewStockSymbol] = useState("");
@@ -233,11 +235,87 @@ export const InvestmentDashboard: React.FC = () => {
   }, []);
 
   const checkGrowwStatus = useCallback(async () => {
-    const { data } = await safeFetchJson<{ success: boolean; credentials: any }>("/api/investments/groww-status");
+    const { data } = await safeFetchJson<{
+      success: boolean;
+      credentials: any;
+      token?: string;
+      secret?: string;
+      totpKey?: string;
+    }>("/api/investments/groww-status");
     if (data && data.credentials) {
       setGrowwStatus(data.credentials);
+      if (data.token) {
+        setGrowwTokenInput((prev) => prev || data.token || "");
+      }
+      if (data.secret) {
+        setGrowwSecretInput((prev) => prev || data.secret || "");
+      }
+      if (data.totpKey) {
+        setGrowwTotpInput((prev) => prev || data.totpKey || "");
+      }
     }
   }, []);
+
+  const handleVerifyToken = async () => {
+    const tokenToTest = (growwTokenInput || "").trim();
+    if (!tokenToTest) {
+      setError("Please enter your Groww API token before verifying.");
+      return;
+    }
+    try {
+      setTestingToken(true);
+      setTokenVerifyResult(null);
+      const { data, error: testErr } = await safeFetchJson<{
+        success: boolean;
+        message: string;
+        statusCode?: number;
+        holdingsCount?: number;
+      }>("/api/investments/verify-groww-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: tokenToTest,
+          secret: growwSecretInput.trim()
+        })
+      });
+
+      if (testErr) {
+        setTokenVerifyResult({
+          success: false,
+          statusCode: 500,
+          message: `Network verification error: ${testErr}`
+        });
+      } else if (data) {
+        setTokenVerifyResult({
+          success: data.success,
+          statusCode: data.statusCode,
+          message: data.message
+        });
+      }
+    } catch (err: any) {
+      setTokenVerifyResult({
+        success: false,
+        statusCode: 500,
+        message: err.message || "Failed to test token connection."
+      });
+    } finally {
+      setTestingToken(false);
+    }
+  };
+
+  const handleLoadSampleCsv = () => {
+    const sampleCsv = `Stock Name,Symbol,Qty,Avg Buy Price,LTP,Sector
+Reliance Industries Ltd,RELIANCE,25,2850.00,2955.40,Energy & Petrochemicals
+Tata Consultancy Services,TCS,15,3850.50,4120.00,IT Services
+HDFC Bank Ltd,HDFCBANK,40,1520.00,1645.00,Banking & Finance
+Infosys Ltd,INFY,30,1650.00,1825.40,IT Services
+ITC Ltd,ITC,100,420.00,492.50,FMCG
+Parag Parikh Flexi Cap Fund - Direct,PPFAS,120,65.40,78.20,Flexi Cap`;
+    setCsvTextInput(sampleCsv);
+    setCsvFileName("groww_sample_holdings.csv");
+    setActionSuccess("Sample Groww Holdings statement loaded! Click 'Import Holdings' below.");
+    setTimeout(() => setActionSuccess(null), 4000);
+  };
 
   useEffect(() => {
     fetchPortfolio(true);
@@ -1968,6 +2046,27 @@ export const InvestmentDashboard: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Token Verification Card */}
+                {tokenVerifyResult && (
+                  <div
+                    className={`p-3 rounded-xl border text-[11px] space-y-1 ${
+                      tokenVerifyResult.success
+                        ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                        : "bg-rose-950/40 border-rose-500/40 text-rose-300"
+                    }`}
+                  >
+                    <div className="font-semibold flex items-center justify-between">
+                      <span>{tokenVerifyResult.success ? "✓ Token Verified" : "✕ Verification Failed"}</span>
+                      {tokenVerifyResult.statusCode && (
+                        <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-black/40">
+                          HTTP {tokenVerifyResult.statusCode}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-slate-300">{tokenVerifyResult.message}</p>
+                  </div>
+                )}
+
                 <div className="p-3 bg-indigo-950/30 border border-indigo-500/20 rounded-xl text-[11px] text-slate-300 space-y-1">
                   <div className="flex items-center gap-1.5 font-semibold text-indigo-300">
                     <HelpCircle className="w-3.5 h-3.5" />
@@ -1979,14 +2078,25 @@ export const InvestmentDashboard: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => syncFromGroww()}
-                    disabled={syncingGroww || !growwStatus?.hasToken}
-                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium cursor-pointer disabled:opacity-40"
-                  >
-                    {syncingGroww ? "Syncing..." : "Sync with Existing Token"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleVerifyToken}
+                      disabled={testingToken || !growwTokenInput.trim()}
+                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium cursor-pointer disabled:opacity-40 flex items-center gap-1"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${testingToken ? "animate-spin" : ""}`} />
+                      <span>{testingToken ? "Verifying..." : "Test Connection"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => syncFromGroww()}
+                      disabled={syncingGroww || !growwStatus?.hasToken}
+                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium cursor-pointer disabled:opacity-40"
+                    >
+                      {syncingGroww ? "Syncing..." : "Sync Token"}
+                    </button>
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <button
@@ -2012,9 +2122,18 @@ export const InvestmentDashboard: React.FC = () => {
             {growwModalTab === "csv" && (
               <div className="space-y-3 text-xs">
                 <div className="p-3 bg-emerald-950/30 border border-emerald-500/20 rounded-xl text-[11px] text-slate-300 space-y-1">
-                  <div className="flex items-center gap-1.5 font-semibold text-emerald-300">
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span>How to get your Groww Holdings CSV:</span>
+                  <div className="flex items-center justify-between font-semibold text-emerald-300">
+                    <div className="flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>How to get your Groww Holdings CSV:</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLoadSampleCsv}
+                      className="text-[10px] bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/40 cursor-pointer font-normal"
+                    >
+                      + Load Sample CSV
+                    </button>
                   </div>
                   <ol className="list-decimal list-inside text-slate-400 space-y-0.5 pl-1">
                     <li>Log into Groww (Web or App).</li>

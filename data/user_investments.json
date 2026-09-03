@@ -1,5 +1,36 @@
 {
-  "stocks": [],
+  "stocks": [
+    {
+      "id": "groww-stk-1788472830147-1",
+      "symbol": "RELIANCE",
+      "name": "Reliance Industries Ltd",
+      "quantity": 25,
+      "buyPrice": 2850,
+      "currentPrice": 2955.4,
+      "investedAmount": 71250,
+      "currentValue": 73885,
+      "unrealizedPnl": 2635,
+      "unrealizedPnlPct": 3.7,
+      "dayChangePct": 0,
+      "sector": "Energy",
+      "purchaseDate": "2026-09-03"
+    },
+    {
+      "id": "groww-stk-1788472830147-2",
+      "symbol": "TCS",
+      "name": "Tata Consultancy Services",
+      "quantity": 15,
+      "buyPrice": 3850.5,
+      "currentPrice": 4120,
+      "investedAmount": 57757.5,
+      "currentValue": 61800,
+      "unrealizedPnl": 4042.5,
+      "unrealizedPnlPct": 7,
+      "dayChangePct": 0,
+      "sector": "IT Services",
+      "purchaseDate": "2026-09-03"
+    }
+  ],
   "sips": [],
   "accountingHistory": []
 }

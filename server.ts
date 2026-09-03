@@ -513,9 +513,28 @@ WantedBy=multi-user.target
   });
 
   // Tick market prices for user investments
-  app.post("/api/investments/tick", (_req, res) => {
-    investmentStore.tickMarketPrices();
+  app.post("/api/investments/tick", async (_req, res) => {
+    await investmentStore.tickMarketPrices();
     res.json(investmentStore.getPortfolioData());
+  });
+
+  // Sync holdings & SIPs directly from Groww API
+  app.post("/api/investments/sync-groww", async (_req, res) => {
+    const syncResult = await investmentStore.syncWithGroww();
+    res.json({
+      ...syncResult,
+      portfolio: investmentStore.getPortfolioData()
+    });
+  });
+
+  // Reset portfolio to zero (clear all holdings and accounting history)
+  app.post("/api/investments/reset", (_req, res) => {
+    investmentStore.clearPortfolio();
+    res.json({
+      success: true,
+      message: "Portfolio reset to 0. All holdings cleared.",
+      portfolio: investmentStore.getPortfolioData()
+    });
   });
 
   // Export investment accounting ledger CSV

@@ -172,18 +172,108 @@ export class GrowwClient {
       WIPRO: 520.10,
     };
 
-    const basePrice = baseMap[cleanSym] || 1200;
-    const noise = (Math.random() - 0.49) * 8.0;
-    const ltp = Math.round((basePrice + noise) * 100) / 100;
+    const basePrice = baseMap[cleanSym] || 0;
+    const ltp = basePrice;
     return {
       symbol: cleanSym,
       ltp,
-      open: basePrice - 5,
-      high: ltp + 10,
-      low: ltp - 10,
+      open: basePrice,
+      high: basePrice,
+      low: basePrice,
       close: basePrice,
-      volume: Math.floor(500000 + Math.random() * 800000),
+      volume: 0,
       timestamp: nowIso,
+    };
+  }
+
+  /**
+   * Fetch Real User Equity Holdings from Groww API
+   */
+  public async getUserHoldings(): Promise<{ success: boolean; holdings: any[]; error?: string }> {
+    if (!this.token || this.token === "grw_live_demo_key_998811" || this.token.length < 5) {
+      return {
+        success: false,
+        holdings: [],
+        error: "Groww API token is not configured. Please enter your valid Groww API token in System Config."
+      };
+    }
+
+    const endpoints = [
+      "https://api.groww.in/v1/holdings/user",
+      "https://api.groww.in/v1/margins/user/holdings",
+      "https://groww.in/v1/api/stocks_data/v1/holdings/user"
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            "X-App-Secret": this.secret,
+            "Content-Type": "application/json",
+          }
+        });
+        if (res.ok) {
+          const data: any = await res.json();
+          const list = Array.isArray(data) ? data : (data.holdings || data.data || data.user_holdings || []);
+          if (Array.isArray(list)) {
+            return { success: true, holdings: list };
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    return {
+      success: false,
+      holdings: [],
+      error: "Could not fetch holdings from Groww. Check your token and credentials."
+    };
+  }
+
+  /**
+   * Fetch Real User SIPs from Groww API
+   */
+  public async getUserSips(): Promise<{ success: boolean; sips: any[]; error?: string }> {
+    if (!this.token || this.token === "grw_live_demo_key_998811" || this.token.length < 5) {
+      return {
+        success: false,
+        sips: [],
+        error: "Groww API token is not configured."
+      };
+    }
+
+    const endpoints = [
+      "https://api.groww.in/v1/mutual_funds/user/sips",
+      "https://groww.in/v1/api/stocks_data/v1/mutual_funds/user/sips"
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            "X-App-Secret": this.secret,
+            "Content-Type": "application/json",
+          }
+        });
+        if (res.ok) {
+          const data: any = await res.json();
+          const list = Array.isArray(data) ? data : (data.sips || data.data || []);
+          if (Array.isArray(list)) {
+            return { success: true, sips: list };
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    return {
+      success: false,
+      sips: [],
+      error: "Could not fetch SIPs from Groww."
     };
   }
 

@@ -46,253 +46,28 @@ import {
   AccountingSnapshot
 } from "../types";
 
-// Default realistic fallback portfolio used during initial boot or server sync
-const DEFAULT_FALLBACK_PORTFOLIO: InvestmentPortfolioData = {
-  stocks: [
-    {
-      id: "stk-1",
-      symbol: "TATAMOTORS",
-      name: "Tata Motors Ltd",
-      quantity: 50,
-      buyPrice: 820.0,
-      currentPrice: 945.5,
-      investedAmount: 41000.0,
-      currentValue: 47275.0,
-      unrealizedPnl: 6275.0,
-      unrealizedPnlPct: 15.3,
-      dayChangePct: 1.45,
-      sector: "Automobile",
-      purchaseDate: "2024-03-15"
-    },
-    {
-      id: "stk-2",
-      symbol: "INFY",
-      name: "Infosys Ltd",
-      quantity: 35,
-      buyPrice: 1520.0,
-      currentPrice: 1680.0,
-      investedAmount: 53200.0,
-      currentValue: 58800.0,
-      unrealizedPnl: 5600.0,
-      unrealizedPnlPct: 10.53,
-      dayChangePct: 0.85,
-      sector: "IT & Technology",
-      purchaseDate: "2024-04-10"
-    },
-    {
-      id: "stk-3",
-      symbol: "RELIANCE",
-      name: "Reliance Industries Ltd",
-      quantity: 20,
-      buyPrice: 2780.0,
-      currentPrice: 2940.0,
-      investedAmount: 55600.0,
-      currentValue: 58800.0,
-      unrealizedPnl: 3200.0,
-      unrealizedPnlPct: 5.76,
-      dayChangePct: -0.4,
-      sector: "Energy / Conglomerate",
-      purchaseDate: "2024-05-02"
-    },
-    {
-      id: "stk-4",
-      symbol: "ITC",
-      name: "ITC Limited",
-      quantity: 100,
-      buyPrice: 410.0,
-      currentPrice: 472.0,
-      investedAmount: 41000.0,
-      currentValue: 47200.0,
-      unrealizedPnl: 6200.0,
-      unrealizedPnlPct: 15.12,
-      dayChangePct: 0.65,
-      sector: "FMCG",
-      purchaseDate: "2024-02-18"
-    },
-    {
-      id: "stk-5",
-      symbol: "HDFCBANK",
-      name: "HDFC Bank Ltd",
-      quantity: 40,
-      buyPrice: 1480.0,
-      currentPrice: 1610.0,
-      investedAmount: 59200.0,
-      currentValue: 64400.0,
-      unrealizedPnl: 5200.0,
-      unrealizedPnlPct: 8.78,
-      dayChangePct: 1.1,
-      sector: "Banking / Financials",
-      purchaseDate: "2024-03-22"
-    }
-  ],
-  sips: [
-    {
-      id: "sip-1",
-      fundName: "Parag Parikh Flexi Cap Fund - Direct Growth",
-      category: "Flexi Cap",
-      frequency: "Monthly",
-      installmentAmount: 5000,
-      totalInstallments: 14,
-      investedAmount: 70000,
-      units: 945.32,
-      avgNav: 74.05,
-      currentNav: 89.6,
-      currentValue: 84700.67,
-      unrealizedPnl: 14700.67,
-      unrealizedPnlPct: 21.0,
-      dayChangePct: 0.72,
-      nextSipDate: "2026-09-10",
-      startDate: "2025-07-10",
-      status: "ACTIVE"
-    },
-    {
-      id: "sip-2",
-      fundName: "UTI Nifty 50 Index Fund - Direct Growth",
-      category: "Index Fund",
-      frequency: "Monthly",
-      installmentAmount: 4000,
-      totalInstallments: 12,
-      investedAmount: 48000,
-      units: 320.15,
-      avgNav: 149.93,
-      currentNav: 171.4,
-      currentValue: 54873.71,
-      unrealizedPnl: 6873.71,
-      unrealizedPnlPct: 14.32,
-      dayChangePct: 0.55,
-      nextSipDate: "2026-09-15",
-      startDate: "2025-09-15",
-      status: "ACTIVE"
-    },
-    {
-      id: "sip-3",
-      fundName: "Nippon India Small Cap Fund - Direct Growth",
-      category: "Equity",
-      frequency: "Monthly",
-      installmentAmount: 3000,
-      totalInstallments: 10,
-      investedAmount: 30000,
-      units: 182.4,
-      avgNav: 164.47,
-      currentNav: 206.8,
-      currentValue: 37720.32,
-      unrealizedPnl: 7720.32,
-      unrealizedPnlPct: 25.73,
-      dayChangePct: 1.15,
-      nextSipDate: "2026-09-05",
-      startDate: "2025-11-05",
-      status: "ACTIVE"
-    }
-  ],
-  accountingHistory: [
-    {
-      id: "snap-1",
-      date: "2026-09-01",
-      time: "09:15:00",
-      sessionType: "MARKET_OPEN",
-      label: "Market Opening (09:15 AM)",
-      totalInvested: 398000,
-      stocksInvested: 250000,
-      sipInvested: 148000,
-      totalCurrentValue: 436200,
-      stocksCurrentValue: 268000,
-      sipCurrentValue: 168200,
-      totalPnl: 38200,
-      totalPnlPct: 9.6,
-      dayChangeAmount: 0,
-      dayChangePct: 0,
-      notes: "Month beginning market opening baseline check."
-    },
-    {
-      id: "snap-2",
-      date: "2026-09-01",
-      time: "15:30:00",
-      sessionType: "MARKET_CLOSE",
-      label: "End of Day (03:30 PM)",
-      totalInvested: 398000,
-      stocksInvested: 250000,
-      sipInvested: 148000,
-      totalCurrentValue: 439800,
-      stocksCurrentValue: 270500,
-      sipCurrentValue: 169300,
-      totalPnl: 41800,
-      totalPnlPct: 10.5,
-      dayChangeAmount: 3600,
-      dayChangePct: 0.83,
-      notes: "Positive market closing driven by Auto & IT rally."
-    },
-    {
-      id: "snap-3",
-      date: "2026-09-02",
-      time: "09:15:00",
-      sessionType: "MARKET_OPEN",
-      label: "Market Opening (09:15 AM)",
-      totalInvested: 398000,
-      stocksInvested: 250000,
-      sipInvested: 148000,
-      totalCurrentValue: 440200,
-      stocksCurrentValue: 270800,
-      sipCurrentValue: 169400,
-      totalPnl: 42200,
-      totalPnlPct: 10.6,
-      dayChangeAmount: 400,
-      dayChangePct: 0.09,
-      notes: "Opening gap-up recorded across broader indices."
-    },
-    {
-      id: "snap-4",
-      date: "2026-09-02",
-      time: "15:30:00",
-      sessionType: "MARKET_CLOSE",
-      label: "End of Day (03:30 PM)",
-      totalInvested: 398000,
-      stocksInvested: 250000,
-      sipInvested: 148000,
-      totalCurrentValue: 444100,
-      stocksCurrentValue: 273600,
-      sipCurrentValue: 170500,
-      totalPnl: 46100,
-      totalPnlPct: 11.58,
-      dayChangeAmount: 3900,
-      dayChangePct: 0.89,
-      notes: "Steady buying in banking & bluechip FMCG."
-    },
-    {
-      id: "snap-5",
-      date: "2026-09-03",
-      time: "09:15:00",
-      sessionType: "MARKET_OPEN",
-      label: "Market Opening (09:15 AM)",
-      totalInvested: 398000,
-      stocksInvested: 250000,
-      sipInvested: 148000,
-      totalCurrentValue: 444600,
-      stocksCurrentValue: 274000,
-      sipCurrentValue: 170600,
-      totalPnl: 46600,
-      totalPnlPct: 11.71,
-      dayChangeAmount: 500,
-      dayChangePct: 0.11,
-      notes: "Today's opening recorded successfully."
-    }
-  ],
+// Zero empty portfolio - No default mock numbers or random values
+const EMPTY_PORTFOLIO: InvestmentPortfolioData = {
+  stocks: [],
+  sips: [],
+  accountingHistory: [],
   summary: {
-    totalInvested: 398000,
-    totalCurrentValue: 453769.7,
-    totalPnl: 55769.7,
-    totalPnlPct: 14.01,
-    dayChangeAmount: 9169.7,
-    dayChangePct: 2.06,
-    stocksInvested: 250000,
-    stocksValue: 276475,
-    sipInvested: 148000,
-    sipValue: 177294.7,
-    lastAccountingSession: "MARKET_OPEN",
-    lastAccountingTimestamp: "2026-09-03 09:15:00"
+    totalInvested: 0,
+    totalCurrentValue: 0,
+    totalPnl: 0,
+    totalPnlPct: 0,
+    dayChangeAmount: 0,
+    dayChangePct: 0,
+    stocksInvested: 0,
+    stocksValue: 0,
+    sipInvested: 0,
+    sipValue: 0,
+    lastAccountingSession: "NONE",
+    lastAccountingTimestamp: "None"
   }
 };
 
-// Popular Indian NSE stocks quick presets
+// Popular Indian NSE stocks quick presets for manual entry
 const POPULAR_STOCKS = [
   { symbol: "RELIANCE", name: "Reliance Industries Ltd", sector: "Energy / Conglomerate", price: 2940 },
   { symbol: "TCS", name: "Tata Consultancy Services Ltd", sector: "IT & Technology", price: 4180 },
@@ -339,9 +114,10 @@ async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<{ d
 }
 
 export const InvestmentDashboard: React.FC = () => {
-  const [portfolio, setPortfolio] = useState<InvestmentPortfolioData>(DEFAULT_FALLBACK_PORTFOLIO);
+  const [portfolio, setPortfolio] = useState<InvestmentPortfolioData>(EMPTY_PORTFOLIO);
   const [loading, setLoading] = useState(false);
   const [ticking, setTicking] = useState(false);
+  const [syncingGroww, setSyncingGroww] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "stocks" | "sip" | "accounting">("overview");
@@ -424,15 +200,18 @@ export const InvestmentDashboard: React.FC = () => {
       setPortfolio(data);
       setError(null);
     } else if (fetchErr) {
-      // If error occurs, do not throw or crash; if initial, retry once in 1.2s
       if (isInitial) {
         setTimeout(async () => {
           const retryRes = await safeFetchJson<InvestmentPortfolioData>("/api/investments");
           if (retryRes.data && retryRes.data.stocks) {
             setPortfolio(retryRes.data);
             setError(null);
+          } else {
+            setPortfolio(EMPTY_PORTFOLIO);
           }
         }, 1200);
+      } else {
+        setPortfolio(EMPTY_PORTFOLIO);
       }
     }
     if (isInitial) setLoading(false);
@@ -441,6 +220,53 @@ export const InvestmentDashboard: React.FC = () => {
   useEffect(() => {
     fetchPortfolio(true);
   }, [fetchPortfolio]);
+
+  // Sync holdings & SIPs live from Groww
+  const syncFromGroww = async () => {
+    try {
+      setSyncingGroww(true);
+      setError(null);
+      setActionSuccess(null);
+      const res = await fetch("/api/investments/sync-groww", { method: "POST" });
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.success && data.portfolio) {
+          setPortfolio(data.portfolio);
+          setActionSuccess(data.message || `Successfully synced ${data.stockCount || 0} stocks and ${data.sipCount || 0} SIPs from Groww!`);
+          setTimeout(() => setActionSuccess(null), 5000);
+        } else {
+          setError(data.message || "Could not fetch holdings from Groww. Enter your Groww API Token & Secret in System Config.");
+          setTimeout(() => setError(null), 6000);
+        }
+      } else {
+        setError("Backend returned invalid response during Groww sync.");
+        setTimeout(() => setError(null), 4000);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to connect to Groww sync endpoint.");
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setSyncingGroww(false);
+    }
+  };
+
+  // Reset portfolio to pure zero (clear all holdings and accounting)
+  const resetPortfolioToZero = async () => {
+    if (!window.confirm("Are you sure you want to clear all holdings and reset everything to ₹0?")) return;
+    try {
+      const res = await fetch("/api/investments/reset", { method: "POST" });
+      const data = await res.json();
+      if (data && data.portfolio) {
+        setPortfolio(data.portfolio);
+        setActionSuccess("Portfolio has been reset to ₹0. All holdings cleared.");
+        setTimeout(() => setActionSuccess(null), 4000);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to reset portfolio.");
+      setTimeout(() => setError(null), 4000);
+    }
+  };
 
   // Record accounting snapshot for Market Open or Market Close (EOD)
   const recordAccounting = async (sessionType: "MARKET_OPEN" | "MARKET_CLOSE") => {
@@ -478,8 +304,13 @@ export const InvestmentDashboard: React.FC = () => {
     }
   };
 
-  // Live Market Price Tick Simulation
+  // Live Market Price Tick
   const handleTickPrices = async () => {
+    if (!portfolio || portfolio.stocks.length === 0) {
+      setActionSuccess("No stocks currently in portfolio. Sync from Groww or add a holding to fetch live quotes.");
+      setTimeout(() => setActionSuccess(null), 4000);
+      return;
+    }
     try {
       setTicking(true);
       const res = await fetch("/api/investments/tick", { method: "POST" });
@@ -488,7 +319,7 @@ export const InvestmentDashboard: React.FC = () => {
         const data = await res.json();
         if (data && data.stocks) {
           setPortfolio(data);
-          setActionSuccess("⚡ Live tick: updated holding LTPs with current NSE market variance!");
+          setActionSuccess("⚡ Live tick: updated holding LTPs with current Groww / NSE market quotes!");
           setTimeout(() => setActionSuccess(null), 3000);
         }
       }
@@ -649,7 +480,7 @@ export const InvestmentDashboard: React.FC = () => {
     if (!newSipInstallments) setNewSipInstallments("6");
   };
 
-  const summary = portfolio?.summary || DEFAULT_FALLBACK_PORTFOLIO.summary;
+  const summary = portfolio?.summary || EMPTY_PORTFOLIO.summary;
 
   // Chart data for historical accounting snapshots
   const chartData = useMemo(() => {
@@ -783,8 +614,19 @@ export const InvestmentDashboard: React.FC = () => {
             </p>
           </div>
 
-          {/* Right Action Controls: 09:15 AM & 03:30 PM Accounting Buttons */}
+          {/* Right Action Controls: 09:15 AM & 03:30 PM Accounting Buttons & Groww Sync */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Sync from Groww API */}
+            <button
+              onClick={syncFromGroww}
+              disabled={syncingGroww}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/30 cursor-pointer disabled:opacity-50"
+              title="Fetch real portfolio holdings and active SIPs directly from Groww API"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-white ${syncingGroww ? "animate-spin" : ""}`} />
+              <span>{syncingGroww ? "Syncing Groww..." : "Sync from Groww"}</span>
+            </button>
+
             {/* Record Market Open Button */}
             <button
               onClick={() => recordAccounting("MARKET_OPEN")}
@@ -820,10 +662,20 @@ export const InvestmentDashboard: React.FC = () => {
               onClick={handleTickPrices}
               disabled={ticking}
               className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer disabled:opacity-50"
-              title="Simulate live NSE market tick on all direct equity and SIP holdings"
+              title="Fetch live quotes from Groww / NSE on all portfolio holdings"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-teal-400 ${ticking ? "animate-spin" : ""}`} />
               <span>Live Tick</span>
+            </button>
+
+            {/* Clear / Reset to 0 */}
+            <button
+              onClick={resetPortfolioToZero}
+              className="flex items-center gap-1.5 px-2.5 py-2.5 rounded-xl bg-slate-800/90 hover:bg-rose-950/80 hover:text-rose-300 text-slate-400 text-xs font-medium border border-slate-700 hover:border-rose-700/50 transition-all cursor-pointer"
+              title="Clear all holdings and reset portfolio values to 0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Reset / 0</span>
             </button>
 
             {/* Export CSV */}
@@ -1205,33 +1057,41 @@ export const InvestmentDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-                  {(portfolio?.accountingHistory || []).slice(-5).reverse().map((snap) => (
-                    <tr key={snap.id} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="py-2.5 px-3 whitespace-nowrap text-white font-medium">
-                        {snap.date} <span className="text-slate-500">{snap.time}</span>
+                  {(portfolio?.accountingHistory || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-500 font-sans text-xs">
+                        No accounting snapshots recorded yet. Use the buttons above to record Market Open (09:15 AM) or EOD (03:30 PM).
                       </td>
-                      <td className="py-2.5 px-3 whitespace-nowrap font-sans">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            snap.sessionType === "MARKET_OPEN"
-                              ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                              : "bg-teal-500/20 text-teal-300 border border-teal-500/30"
-                          }`}
-                        >
-                          {snap.sessionType === "MARKET_OPEN" ? "🌅 Market Open (09:15)" : "🌇 End of Day (15:30)"}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 whitespace-nowrap">₹{snap.totalInvested.toLocaleString("en-IN")}</td>
-                      <td className="py-2.5 px-3 whitespace-nowrap font-bold text-white">₹{snap.totalCurrentValue.toLocaleString("en-IN")}</td>
-                      <td className={`py-2.5 px-3 whitespace-nowrap font-semibold ${snap.dayChangeAmount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                        {snap.dayChangeAmount >= 0 ? "+" : ""}₹{snap.dayChangeAmount.toLocaleString("en-IN")} ({snap.dayChangePct}%)
-                      </td>
-                      <td className={`py-2.5 px-3 whitespace-nowrap font-bold ${snap.totalPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                        {snap.totalPnl >= 0 ? "+" : ""}₹{snap.totalPnl.toLocaleString("en-IN")} ({snap.totalPnlPct}%)
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-400 font-sans truncate max-w-xs">{snap.notes}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    (portfolio?.accountingHistory || []).slice(-5).reverse().map((snap) => (
+                      <tr key={snap.id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="py-2.5 px-3 whitespace-nowrap text-white font-medium">
+                          {snap.date} <span className="text-slate-500">{snap.time}</span>
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap font-sans">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              snap.sessionType === "MARKET_OPEN"
+                                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                                : "bg-teal-500/20 text-teal-300 border border-teal-500/30"
+                            }`}
+                          >
+                            {snap.sessionType === "MARKET_OPEN" ? "🌅 Market Open (09:15)" : "🌇 End of Day (15:30)"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">₹{snap.totalInvested.toLocaleString("en-IN")}</td>
+                        <td className="py-2.5 px-3 whitespace-nowrap font-bold text-white">₹{snap.totalCurrentValue.toLocaleString("en-IN")}</td>
+                        <td className={`py-2.5 px-3 whitespace-nowrap font-semibold ${snap.dayChangeAmount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {snap.dayChangeAmount >= 0 ? "+" : ""}₹{snap.dayChangeAmount.toLocaleString("en-IN")} ({snap.dayChangePct}%)
+                        </td>
+                        <td className={`py-2.5 px-3 whitespace-nowrap font-bold ${snap.totalPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {snap.totalPnl >= 0 ? "+" : ""}₹{snap.totalPnl.toLocaleString("en-IN")} ({snap.totalPnlPct}%)
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 font-sans truncate max-w-xs">{snap.notes}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1304,39 +1164,53 @@ export const InvestmentDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-                {filteredStocks.map((stk) => (
-                  <tr key={stk.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3 px-3 whitespace-nowrap font-sans">
-                      <div className="font-bold text-white text-xs flex items-center gap-2">
-                        <span>{stk.symbol}</span>
-                        <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                          {stk.sector}
+                {filteredStocks.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-10 text-center text-slate-400 font-sans">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Briefcase className="w-8 h-8 text-slate-600" />
+                        <span className="text-sm font-semibold text-slate-300">No stock holdings loaded</span>
+                        <span className="text-xs text-slate-500 max-w-sm">
+                          Portfolio has 0 stocks. Click &quot;Sync from Groww&quot; to fetch your real holdings or &quot;Add Stock&quot; to record a holding manually.
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">{stk.name}</div>
-                    </td>
-                    <td className="py-3 px-3 whitespace-nowrap font-bold text-slate-200">{stk.quantity}</td>
-                    <td className="py-3 px-3 whitespace-nowrap">₹{stk.buyPrice.toFixed(2)}</td>
-                    <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{stk.currentPrice.toFixed(2)}</td>
-                    <td className="py-3 px-3 whitespace-nowrap">₹{stk.investedAmount.toLocaleString("en-IN")}</td>
-                    <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{stk.currentValue.toLocaleString("en-IN")}</td>
-                    <td className={`py-3 px-3 whitespace-nowrap font-bold ${stk.unrealizedPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {stk.unrealizedPnl >= 0 ? "+" : ""}₹{stk.unrealizedPnl.toLocaleString("en-IN")} ({stk.unrealizedPnlPct}%)
-                    </td>
-                    <td className={`py-3 px-3 whitespace-nowrap font-semibold ${stk.dayChangePct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {stk.dayChangePct >= 0 ? "+" : ""}{stk.dayChangePct}%
-                    </td>
-                    <td className="py-3 px-3 whitespace-nowrap text-right font-sans">
-                      <button
-                        onClick={() => handleDeleteStock(stk.id, stk.symbol)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer rounded-lg hover:bg-slate-800"
-                        title="Remove stock from portfolio"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredStocks.map((stk) => (
+                    <tr key={stk.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3 px-3 whitespace-nowrap font-sans">
+                        <div className="font-bold text-white text-xs flex items-center gap-2">
+                          <span>{stk.symbol}</span>
+                          <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                            {stk.sector}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">{stk.name}</div>
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap font-bold text-slate-200">{stk.quantity}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">₹{stk.buyPrice.toFixed(2)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{stk.currentPrice.toFixed(2)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">₹{stk.investedAmount.toLocaleString("en-IN")}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{stk.currentValue.toLocaleString("en-IN")}</td>
+                      <td className={`py-3 px-3 whitespace-nowrap font-bold ${stk.unrealizedPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {stk.unrealizedPnl >= 0 ? "+" : ""}₹{stk.unrealizedPnl.toLocaleString("en-IN")} ({stk.unrealizedPnlPct}%)
+                      </td>
+                      <td className={`py-3 px-3 whitespace-nowrap font-semibold ${stk.dayChangePct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {stk.dayChangePct >= 0 ? "+" : ""}{stk.dayChangePct}%
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap text-right font-sans">
+                        <button
+                          onClick={() => handleDeleteStock(stk.id, stk.symbol)}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer rounded-lg hover:bg-slate-800"
+                          title="Remove stock from portfolio"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -1395,43 +1269,57 @@ export const InvestmentDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-                {filteredSips.map((sip) => (
-                  <tr key={sip.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3 px-3 whitespace-nowrap font-sans">
-                      <div className="font-bold text-white text-xs">{sip.fundName}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
-                        <span className="text-teal-400 font-medium">{sip.category}</span>
-                        <span>•</span>
-                        <span className="text-emerald-400 font-semibold">{sip.status}</span>
-                        {sip.nextSipDate && (
-                          <>
-                            <span>•</span>
-                            <span className="text-slate-500 font-mono">Next: {sip.nextSipDate}</span>
-                          </>
-                        )}
+                {filteredSips.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-10 text-center text-slate-400 font-sans">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <PiggyBank className="w-8 h-8 text-slate-600" />
+                        <span className="text-sm font-semibold text-slate-300">No SIP investments loaded</span>
+                        <span className="text-xs text-slate-500 max-w-sm">
+                          SIP book is currently ₹0. Click &quot;Sync from Groww&quot; to fetch active mutual funds or &quot;Add New SIP&quot; to log an installment plan.
+                        </span>
                       </div>
                     </td>
-                    <td className="py-3 px-3 whitespace-nowrap font-sans text-slate-300">{sip.frequency}</td>
-                    <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{sip.installmentAmount.toLocaleString("en-IN")}</td>
-                    <td className="py-3 px-3 whitespace-nowrap text-slate-300">{sip.totalInstallments} debits</td>
-                    <td className="py-3 px-3 whitespace-nowrap">₹{sip.investedAmount.toLocaleString("en-IN")}</td>
-                    <td className="py-3 px-3 whitespace-nowrap">{sip.units.toFixed(2)}</td>
-                    <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{sip.currentNav.toFixed(2)}</td>
-                    <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{sip.currentValue.toLocaleString("en-IN")}</td>
-                    <td className={`py-3 px-3 whitespace-nowrap font-bold ${sip.unrealizedPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {sip.unrealizedPnl >= 0 ? "+" : ""}₹{sip.unrealizedPnl.toLocaleString("en-IN")} ({sip.unrealizedPnlPct}%)
-                    </td>
-                    <td className="py-3 px-3 whitespace-nowrap text-right font-sans">
-                      <button
-                        onClick={() => handleDeleteSip(sip.id, sip.fundName)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer rounded-lg hover:bg-slate-800"
-                        title="Remove SIP"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredSips.map((sip) => (
+                    <tr key={sip.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3 px-3 whitespace-nowrap font-sans">
+                        <div className="font-bold text-white text-xs">{sip.fundName}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
+                          <span className="text-teal-400 font-medium">{sip.category}</span>
+                          <span>•</span>
+                          <span className="text-emerald-400 font-semibold">{sip.status}</span>
+                          {sip.nextSipDate && (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-500 font-mono">Next: {sip.nextSipDate}</span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap font-sans text-slate-300">{sip.frequency}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{sip.installmentAmount.toLocaleString("en-IN")}</td>
+                      <td className="py-3 px-3 whitespace-nowrap text-slate-300">{sip.totalInstallments} debits</td>
+                      <td className="py-3 px-3 whitespace-nowrap">₹{sip.investedAmount.toLocaleString("en-IN")}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">{sip.units.toFixed(2)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{sip.currentNav.toFixed(2)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{sip.currentValue.toLocaleString("en-IN")}</td>
+                      <td className={`py-3 px-3 whitespace-nowrap font-bold ${sip.unrealizedPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {sip.unrealizedPnl >= 0 ? "+" : ""}₹{sip.unrealizedPnl.toLocaleString("en-IN")} ({sip.unrealizedPnlPct}%)
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap text-right font-sans">
+                        <button
+                          onClick={() => handleDeleteSip(sip.id, sip.fundName)}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer rounded-lg hover:bg-slate-800"
+                          title="Remove SIP"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -1505,34 +1393,48 @@ export const InvestmentDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-                {filteredAccounting.slice().reverse().map((snap) => (
-                  <tr key={snap.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3 px-3 whitespace-nowrap text-white font-bold">{snap.date}</td>
-                    <td className="py-3 px-3 whitespace-nowrap text-slate-400">{snap.time}</td>
-                    <td className="py-3 px-3 whitespace-nowrap font-sans">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                          snap.sessionType === "MARKET_OPEN"
-                            ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                            : "bg-teal-500/20 text-teal-300 border border-teal-500/30"
-                        }`}
-                      >
-                        {snap.sessionType === "MARKET_OPEN" ? "🌅 Market Open (09:15)" : "🌇 End of Day (15:30)"}
-                      </span>
+                {filteredAccounting.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-10 text-center text-slate-400 font-sans">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Clock className="w-8 h-8 text-slate-600" />
+                        <span className="text-sm font-semibold text-slate-300">No daily accounting audit entries</span>
+                        <span className="text-xs text-slate-500 max-w-sm">
+                          Record your first Market Open (09:15 AM) or End of Day (03:30 PM) checkpoint to begin building your audit ledger.
+                        </span>
+                      </div>
                     </td>
-                    <td className="py-3 px-3 whitespace-nowrap">₹{snap.stocksInvested.toLocaleString("en-IN")}</td>
-                    <td className="py-3 px-3 whitespace-nowrap">₹{snap.sipInvested.toLocaleString("en-IN")}</td>
-                    <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{snap.totalInvested.toLocaleString("en-IN")}</td>
-                    <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{snap.totalCurrentValue.toLocaleString("en-IN")}</td>
-                    <td className={`py-3 px-3 whitespace-nowrap font-semibold ${snap.dayChangeAmount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {snap.dayChangeAmount >= 0 ? "+" : ""}₹{snap.dayChangeAmount.toLocaleString("en-IN")} ({snap.dayChangePct}%)
-                    </td>
-                    <td className={`py-3 px-3 whitespace-nowrap font-bold ${snap.totalPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {snap.totalPnl >= 0 ? "+" : ""}₹{snap.totalPnl.toLocaleString("en-IN")} ({snap.totalPnlPct}%)
-                    </td>
-                    <td className="py-3 px-3 font-sans text-slate-400 max-w-sm truncate">{snap.notes}</td>
                   </tr>
-                ))}
+                ) : (
+                  filteredAccounting.slice().reverse().map((snap) => (
+                    <tr key={snap.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3 px-3 whitespace-nowrap text-white font-bold">{snap.date}</td>
+                      <td className="py-3 px-3 whitespace-nowrap text-slate-400">{snap.time}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-sans">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            snap.sessionType === "MARKET_OPEN"
+                              ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                              : "bg-teal-500/20 text-teal-300 border border-teal-500/30"
+                          }`}
+                        >
+                          {snap.sessionType === "MARKET_OPEN" ? "🌅 Market Open (09:15)" : "🌇 End of Day (15:30)"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap">₹{snap.stocksInvested.toLocaleString("en-IN")}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">₹{snap.sipInvested.toLocaleString("en-IN")}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{snap.totalInvested.toLocaleString("en-IN")}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-bold text-white">₹{snap.totalCurrentValue.toLocaleString("en-IN")}</td>
+                      <td className={`py-3 px-3 whitespace-nowrap font-semibold ${snap.dayChangeAmount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {snap.dayChangeAmount >= 0 ? "+" : ""}₹{snap.dayChangeAmount.toLocaleString("en-IN")} ({snap.dayChangePct}%)
+                      </td>
+                      <td className={`py-3 px-3 whitespace-nowrap font-bold ${snap.totalPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {snap.totalPnl >= 0 ? "+" : ""}₹{snap.totalPnl.toLocaleString("en-IN")} ({snap.totalPnlPct}%)
+                      </td>
+                      <td className="py-3 px-3 font-sans text-slate-400 max-w-sm truncate">{snap.notes}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -309,26 +309,6 @@ async function startServer() {
     res.json({ files });
   });
 
-  // Quant ML Pipeline Endpoints
-  app.post("/api/quant/run-pipeline", async (req, res) => {
-    try {
-      const result = await runQuantMlPipelineForIndex(req.body || {});
-      res.json({ success: true, result });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message || "Failed to execute Quant ML Pipeline" });
-    }
-  });
-
-  app.get("/api/quant/latest", (_req, res) => {
-    const latest = getLatestQuantPipelineResult();
-    res.json({ latest });
-  });
-
-  app.get("/api/quant/model-files", (_req, res) => {
-    const files = getSavedQuantModelFiles();
-    res.json({ files });
-  });
-
   // System Logs & DB Events
   app.get("/api/logs", (req, res) => {
     const file = (req.query.file as string) || "trading.log";
@@ -536,6 +516,18 @@ WantedBy=multi-user.target
   app.post("/api/investments/tick", (_req, res) => {
     investmentStore.tickMarketPrices();
     res.json(investmentStore.getPortfolioData());
+  });
+
+  // Export investment accounting ledger CSV
+  app.get("/api/investments/export-csv", (_req, res) => {
+    const data = investmentStore.getPortfolioData();
+    let csv = "ID,Date,Time,SessionType,Label,StocksInvested,SipInvested,TotalInvested,CurrentNetWorth,DayChange,DayChangePct,TotalPnl,TotalPnlPct,AuditNotes\n";
+    data.accountingHistory.forEach((snap) => {
+      csv += `"${snap.id}","${snap.date}","${snap.time}","${snap.sessionType}","${snap.label}",${snap.stocksInvested},${snap.sipInvested},${snap.totalInvested},${snap.totalCurrentValue},${snap.dayChangeAmount},${snap.dayChangePct},${snap.totalPnl},${snap.totalPnlPct},"${(snap.notes || "").replace(/"/g, '""')}"\n`;
+    });
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", 'attachment; filename="portfolio_accounting_ledger.csv"');
+    res.send(csv);
   });
 
   // ==================== 10-CUSTOMER MICRO-DELIVERY ALGO API ====================

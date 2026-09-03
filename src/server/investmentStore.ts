@@ -382,6 +382,168 @@ class InvestmentStore {
     }
     this.saveToDisk();
   }
+
+  /**
+   * Import holdings and SIPs directly from a Groww exported CSV file
+   */
+  public importGrowwCsv(csvText: string): { success: boolean; message: string; stockCount: number; sipCount: number } {
+    try {
+      const clean = csvText.replace(/^\uFEFF/, "").trim();
+      if (!clean) {
+        return { success: false, message: "CSV content is empty.", stockCount: 0, sipCount: 0 };
+      }
+
+      const parseCsvLine = (line: string): string[] => {
+        const result: string[] = [];
+        let cur = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              cur += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            result.push(cur.trim());
+            cur = "";
+          } else {
+            cur += char;
+          }
+        }
+        result.push(cur.trim());
+        return result;
+      };
+
+      const lines = clean.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length < 2) {
+        return { success: false, message: "CSV must contain a header row and at least one data row.", stockCount: 0, sipCount: 0 };
+      }
+
+      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ""));
+
+      const findCol = (...aliases: string[]): number => {
+        for (const a of aliases) {
+          const cleanAlias = a.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const idx = headers.findIndex((h) => h.includes(cleanAlias) || cleanAlias.includes(h));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+
+      const nameCol = findCol("stockname", "companyname", "schemename", "name", "instrument", "security");
+      const symCol = findCol("symbol", "tradingsymbol", "ticker", "scrip", "isin");
+      const qtyCol = findCol("quantity", "qty", "shares", "units", "holdingqty");
+      const buyPriceCol = findCol("buyprice", "averageprice", "avgprice", "avgcost", "purchaseprice", "buyingprice");
+      const ltpCol = findCol("ltp", "currentprice", "lastprice", "closeprice", "cmp", "nav", "marketprice");
+      const sectorCol = findCol("sector", "category", "assetclass");
+
+      const cleanNum = (val: string | undefined, defaultVal: number = 0): number => {
+        if (!val) return defaultVal;
+        const cleaned = val.replace(/[₹$,\s]/g, "");
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? defaultVal : num;
+      };
+
+      let importedStocks = 0;
+      let importedSips = 0;
+      const newStocks: StockInvestment[] = [];
+      const newSips: SipInvestment[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const row = parseCsvLine(lines[i]);
+        if (row.length === 0 || !row.some((cell) => cell.length > 0)) continue;
+
+        const rawName = nameCol !== -1 && row[nameCol] ? row[nameCol] : (symCol !== -1 ? row[symCol] : `Holding ${i}`);
+        const rawSym = symCol !== -1 && row[symCol] ? row[symCol].toUpperCase().trim() : (rawName ? rawName.slice(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, "") : `STK${i}`);
+        const qty = cleanNum(qtyCol !== -1 ? row[qtyCol] : "0", 0);
+        const buyPrice = cleanNum(buyPriceCol !== -1 ? row[buyPriceCol] : "0", 0);
+        const ltp = cleanNum(ltpCol !== -1 ? row[ltpCol] : "0", buyPrice);
+        const sector = sectorCol !== -1 && row[sectorCol] ? row[sectorCol] : "Equity";
+
+        const isFund = rawName.toLowerCase().includes("fund") ||
+          rawName.toLowerCase().includes("growth") ||
+          rawName.toLowerCase().includes("direct") ||
+          sector.toLowerCase().includes("mutual");
+
+        if (isFund && (qty > 0 || buyPrice > 0)) {
+          const invested = Math.round(qty * buyPrice * 100) / 100;
+          const currentVal = Math.round(qty * ltp * 100) / 100;
+          const pnl = Math.round((currentVal - invested) * 100) / 100;
+          const pnlPct = invested > 0 ? Math.round((pnl / invested) * 10000) / 100 : 0;
+          newSips.push({
+            id: `groww-sip-${Date.now()}-${i}`,
+            fundName: rawName || "Mutual Fund",
+            category: "Flexi Cap",
+            frequency: "Monthly",
+            installmentAmount: buyPrice > 0 ? Math.round(buyPrice * qty) : 1000,
+            totalInstallments: 1,
+            investedAmount: invested,
+            units: qty,
+            avgNav: buyPrice,
+            currentNav: ltp,
+            currentValue: currentVal,
+            unrealizedPnl: pnl,
+            unrealizedPnlPct: pnlPct,
+            dayChangePct: 0,
+            nextSipDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+            startDate: new Date().toISOString().slice(0, 10),
+            status: "ACTIVE"
+          });
+          importedSips++;
+        } else if (qty > 0 || buyPrice > 0) {
+          const invested = Math.round(qty * buyPrice * 100) / 100;
+          const currentVal = Math.round(qty * ltp * 100) / 100;
+          const pnl = Math.round((currentVal - invested) * 100) / 100;
+          const pnlPct = invested > 0 ? Math.round((pnl / invested) * 10000) / 100 : 0;
+          newStocks.push({
+            id: `groww-stk-${Date.now()}-${i}`,
+            symbol: rawSym,
+            name: rawName,
+            quantity: qty,
+            buyPrice,
+            currentPrice: ltp,
+            investedAmount: invested,
+            currentValue: currentVal,
+            unrealizedPnl: pnl,
+            unrealizedPnlPct: pnlPct,
+            dayChangePct: 0,
+            sector,
+            purchaseDate: new Date().toISOString().slice(0, 10)
+          });
+          importedStocks++;
+        }
+      }
+
+      if (importedStocks > 0 || importedSips > 0) {
+        this.stocks = newStocks;
+        if (newSips.length > 0) this.sips = newSips;
+        this.saveToDisk();
+        return {
+          success: true,
+          message: `Successfully imported ${importedStocks} stocks and ${importedSips} mutual funds from Groww CSV!`,
+          stockCount: importedStocks,
+          sipCount: importedSips
+        };
+      }
+
+      return {
+        success: false,
+        message: "No valid stock or fund positions found in the CSV. Ensure headers include Symbol/Name, Quantity, and Average Price.",
+        stockCount: 0,
+        sipCount: 0
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `Failed to parse CSV: ${err.message || "Unknown format error"}`,
+        stockCount: 0,
+        sipCount: 0
+      };
+    }
+  }
 }
 
 export const investmentStore = new InvestmentStore();

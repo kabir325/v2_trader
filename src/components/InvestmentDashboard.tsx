@@ -24,7 +24,12 @@ import {
   Sun,
   Moon,
   Check,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Upload,
+  Key,
+  FileText,
+  Link2,
+  HelpCircle
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -131,6 +136,16 @@ export const InvestmentDashboard: React.FC = () => {
   // Modal / Form States
   const [showStockModal, setShowStockModal] = useState(false);
   const [showSipModal, setShowSipModal] = useState(false);
+  const [showGrowwModal, setShowGrowwModal] = useState(false);
+  const [growwModalTab, setGrowwModalTab] = useState<"api" | "csv">("api");
+  const [growwTokenInput, setGrowwTokenInput] = useState("");
+  const [growwSecretInput, setGrowwSecretInput] = useState("");
+  const [growwTotpInput, setGrowwTotpInput] = useState("");
+  const [growwStatus, setGrowwStatus] = useState<{ hasToken: boolean; tokenPreview: string; hasSecret: boolean; hasTotp: boolean } | null>(null);
+  const [csvTextInput, setCsvTextInput] = useState("");
+  const [csvFileName, setCsvFileName] = useState("");
+  const [importingCsv, setImportingCsv] = useState(false);
+  const [savingGrowwKeys, setSavingGrowwKeys] = useState(false);
 
   // New Stock Form
   const [newStockSymbol, setNewStockSymbol] = useState("");
@@ -217,37 +232,162 @@ export const InvestmentDashboard: React.FC = () => {
     if (isInitial) setLoading(false);
   }, []);
 
+  const checkGrowwStatus = useCallback(async () => {
+    const { data } = await safeFetchJson<{ success: boolean; credentials: any }>("/api/investments/groww-status");
+    if (data && data.credentials) {
+      setGrowwStatus(data.credentials);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPortfolio(true);
-  }, [fetchPortfolio]);
+    checkGrowwStatus();
+  }, [fetchPortfolio, checkGrowwStatus]);
 
   // Sync holdings & SIPs live from Groww
-  const syncFromGroww = async () => {
+  const syncFromGroww = async (customCreds?: { token?: string; secret?: string; totpKey?: string }) => {
     try {
       setSyncingGroww(true);
       setError(null);
       setActionSuccess(null);
-      const res = await fetch("/api/investments/sync-groww", { method: "POST" });
-      const contentType = res.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        const data = await res.json();
-        if (data.success && data.portfolio) {
-          setPortfolio(data.portfolio);
-          setActionSuccess(data.message || `Successfully synced ${data.stockCount || 0} stocks and ${data.sipCount || 0} SIPs from Groww!`);
-          setTimeout(() => setActionSuccess(null), 5000);
-        } else {
-          setError(data.message || "Could not fetch holdings from Groww. Enter your Groww API Token & Secret in System Config.");
-          setTimeout(() => setError(null), 6000);
-        }
+
+      const options: RequestInit = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      };
+      if (customCreds) {
+        options.body = JSON.stringify(customCreds);
+      }
+
+      const { data, error: fetchErr } = await safeFetchJson<{
+        success: boolean;
+        message: string;
+        stockCount: number;
+        sipCount: number;
+        portfolio?: InvestmentPortfolioData;
+      }>("/api/investments/sync-groww", options);
+
+      if (fetchErr) {
+        setError(`Groww Sync: ${fetchErr}`);
+        setShowGrowwModal(true);
+        setTimeout(() => setError(null), 6000);
+        return;
+      }
+
+      if (data && data.success && data.portfolio) {
+        setPortfolio(data.portfolio);
+        setActionSuccess(data.message || `Successfully synced ${data.stockCount || 0} stocks and ${data.sipCount || 0} SIPs from Groww!`);
+        setShowGrowwModal(false);
+        checkGrowwStatus();
+        setTimeout(() => setActionSuccess(null), 5000);
       } else {
-        setError("Backend returned invalid response during Groww sync.");
-        setTimeout(() => setError(null), 4000);
+        const msg = data?.message || "Groww API token is not configured. Connect your Groww account or import CSV.";
+        setError(msg);
+        setShowGrowwModal(true);
+        setTimeout(() => setError(null), 6000);
       }
     } catch (err: any) {
-      setError(err.message || "Failed to connect to Groww sync endpoint.");
-      setTimeout(() => setError(null), 4000);
+      setError(err.message || "Failed to communicate with Groww sync service.");
+      setShowGrowwModal(true);
+      setTimeout(() => setError(null), 5000);
     } finally {
       setSyncingGroww(false);
+    }
+  };
+
+  // Save Groww Credentials directly
+  const handleSaveGrowwCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!growwTokenInput.trim()) return;
+    try {
+      setSavingGrowwKeys(true);
+      const { data, error: saveErr } = await safeFetchJson<{ success: boolean; message: string; credentials: any }>(
+        "/api/investments/groww-credentials",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: growwTokenInput.trim(),
+            secret: growwSecretInput.trim(),
+            totpKey: growwTotpInput.trim()
+          })
+        }
+      );
+      if (saveErr) {
+        setError(`Failed to save Groww credentials: ${saveErr}`);
+        return;
+      }
+      if (data && data.credentials) {
+        setGrowwStatus(data.credentials);
+        setActionSuccess("Groww credentials saved! Initiating live portfolio sync...");
+        await syncFromGroww({
+          token: growwTokenInput.trim(),
+          secret: growwSecretInput.trim(),
+          totpKey: growwTotpInput.trim()
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to save credentials");
+    } finally {
+      setSavingGrowwKeys(false);
+    }
+  };
+
+  // CSV File upload handler
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        setCsvTextInput(text);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Import Groww CSV
+  const handleImportCsv = async () => {
+    if (!csvTextInput.trim()) {
+      setError("Please choose a Groww CSV file or paste holdings CSV content.");
+      return;
+    }
+    try {
+      setImportingCsv(true);
+      setError(null);
+      const { data, error: importErr } = await safeFetchJson<{
+        success: boolean;
+        message: string;
+        stockCount: number;
+        sipCount: number;
+        portfolio?: InvestmentPortfolioData;
+      }>("/api/investments/import-groww-csv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csvText: csvTextInput })
+      });
+
+      if (importErr) {
+        setError(`CSV Import Error: ${importErr}`);
+        return;
+      }
+
+      if (data && data.success && data.portfolio) {
+        setPortfolio(data.portfolio);
+        setActionSuccess(data.message || `Imported ${data.stockCount} stocks and ${data.sipCount} mutual funds from Groww CSV!`);
+        setShowGrowwModal(false);
+        setCsvTextInput("");
+        setCsvFileName("");
+        setTimeout(() => setActionSuccess(null), 5000);
+      } else {
+        setError(data?.message || "Failed to parse Groww CSV.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to process CSV file.");
+    } finally {
+      setImportingCsv(false);
     }
   };
 
@@ -618,13 +758,27 @@ export const InvestmentDashboard: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             {/* Sync from Groww API */}
             <button
-              onClick={syncFromGroww}
+              onClick={() => syncFromGroww()}
               disabled={syncingGroww}
               className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/30 cursor-pointer disabled:opacity-50"
               title="Fetch real portfolio holdings and active SIPs directly from Groww API"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-white ${syncingGroww ? "animate-spin" : ""}`} />
               <span>{syncingGroww ? "Syncing Groww..." : "Sync from Groww"}</span>
+            </button>
+
+            {/* Connect Groww / CSV Modal Trigger */}
+            <button
+              onClick={() => setShowGrowwModal(true)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                growwStatus?.hasToken
+                  ? "bg-slate-800/90 hover:bg-slate-700/90 text-emerald-300 border-emerald-500/40"
+                  : "bg-amber-950/60 hover:bg-amber-900/60 text-amber-200 border-amber-500/40"
+              }`}
+              title="Configure Groww API credentials or import Groww CSV file"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-400" />
+              <span>{growwStatus?.hasToken ? "Groww Linked" : "Connect / CSV"}</span>
             </button>
 
             {/* Record Market Open Button */}
@@ -1691,6 +1845,236 @@ export const InvestmentDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: GROWW API & CSV IMPORT */}
+      {showGrowwModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    Groww Integration & Portfolio Sync
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Sync directly from Groww API or import your exported Holdings CSV
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowGrowwModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Status Banner */}
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    growwStatus?.hasToken ? "bg-emerald-400 animate-pulse" : "bg-amber-400"
+                  }`}
+                />
+                <span className="text-slate-300 font-medium">Status:</span>
+                <span className={growwStatus?.hasToken ? "text-emerald-300 font-semibold" : "text-amber-300 font-semibold"}>
+                  {growwStatus?.hasToken ? "API Token Configured" : "No API Token Set"}
+                </span>
+              </div>
+              {growwStatus?.tokenPreview && (
+                <span className="font-mono text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                  {growwStatus.tokenPreview}
+                </span>
+              )}
+            </div>
+
+            {/* Tabs: Direct API vs CSV Import */}
+            <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setGrowwModalTab("api")}
+                className={`flex-1 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  growwModalTab === "api"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>Groww API Token</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGrowwModalTab("csv")}
+                className={`flex-1 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  growwModalTab === "csv"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Import Groww CSV</span>
+              </button>
+            </div>
+
+            {/* TAB 1: GROWW API KEY */}
+            {growwModalTab === "api" && (
+              <form onSubmit={handleSaveGrowwCredentials} className="space-y-3 text-xs">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-300 font-medium">
+                      Groww API Token / Bearer Token <span className="text-rose-400">*</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">Required</span>
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Enter your Groww Bearer token or API key"
+                    value={growwTokenInput}
+                    onChange={(e) => setGrowwTokenInput(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-mono focus:border-emerald-500 focus:outline-hidden"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Get from Groww Developer API or your active Groww web session header.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 font-medium mb-1">API Secret (Optional)</label>
+                    <input
+                      type="password"
+                      placeholder="App Secret"
+                      value={growwSecretInput}
+                      onChange={(e) => setGrowwSecretInput(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-mono focus:border-emerald-500 focus:outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 font-medium mb-1">TOTP Key (Optional)</label>
+                    <input
+                      type="password"
+                      placeholder="2FA TOTP Secret"
+                      value={growwTotpInput}
+                      onChange={(e) => setGrowwTotpInput(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-mono focus:border-emerald-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 bg-indigo-950/30 border border-indigo-500/20 rounded-xl text-[11px] text-slate-300 space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-indigo-300">
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>Don't have a Groww API Token?</span>
+                  </div>
+                  <p className="text-slate-400">
+                    Switch to the <strong>"Import Groww CSV"</strong> tab to upload your holdings file in 5 seconds without needing developer keys!
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => syncFromGroww()}
+                    disabled={syncingGroww || !growwStatus?.hasToken}
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium cursor-pointer disabled:opacity-40"
+                  >
+                    {syncingGroww ? "Syncing..." : "Sync with Existing Token"}
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGrowwModal(false)}
+                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingGrowwKeys || !growwTokenInput.trim()}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-40"
+                    >
+                      {savingGrowwKeys ? "Saving & Syncing..." : "Save & Sync Now"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* TAB 2: GROWW CSV IMPORT */}
+            {growwModalTab === "csv" && (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 bg-emerald-950/30 border border-emerald-500/20 rounded-xl text-[11px] text-slate-300 space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-emerald-300">
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>How to get your Groww Holdings CSV:</span>
+                  </div>
+                  <ol className="list-decimal list-inside text-slate-400 space-y-0.5 pl-1">
+                    <li>Log into Groww (Web or App).</li>
+                    <li>Go to <strong>Profile → Reports → Stocks → Holdings</strong>.</li>
+                    <li>Click <strong>Download CSV</strong> and upload it below.</li>
+                  </ol>
+                </div>
+
+                {/* File Drop / Select Area */}
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1.5">Choose CSV File:</label>
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-emerald-500/60 rounded-xl p-4 cursor-pointer bg-slate-950/60 hover:bg-slate-950 transition-colors">
+                    <Upload className="w-6 h-6 text-slate-400 mb-1" />
+                    <span className="text-xs text-slate-300 font-medium">
+                      {csvFileName || "Click to browse or drop Groww Holdings CSV"}
+                    </span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Supports .csv files</span>
+                    <input
+                      type="file"
+                      accept=".csv,text/csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Direct Paste Fallback */}
+                <div>
+                  <label className="block text-slate-400 font-medium mb-1">
+                    Or paste raw CSV text:
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Stock Name,Symbol,Qty,Avg Buy Price,LTP&#10;Tata Consultancy Services,TCS,15,3850.50,3920.00"
+                    value={csvTextInput}
+                    onChange={(e) => setCsvTextInput(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-mono text-[11px] focus:border-emerald-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowGrowwModal(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleImportCsv}
+                    disabled={importingCsv || !csvTextInput.trim()}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{importingCsv ? "Importing..." : "Import Holdings to Portfolio"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

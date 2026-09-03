@@ -66,6 +66,16 @@ export class GrowwClient {
     this.isConnected = Boolean(token && token.length > 5);
   }
 
+  public getCredentialsStatus(): { hasToken: boolean; tokenPreview: string; hasSecret: boolean; hasTotp: boolean } {
+    const isValid = Boolean(this.token && this.token.length > 5 && this.token !== "grw_live_demo_key_998811");
+    return {
+      hasToken: isValid,
+      tokenPreview: isValid ? `${this.token.slice(0, 4)}...${this.token.slice(-4)}` : "",
+      hasSecret: Boolean(this.secret && this.secret.length > 3),
+      hasTotp: Boolean(this.totpKey && this.totpKey.length > 4)
+    };
+  }
+
   /**
    * Fetch Live Quote for a given NSE Symbol from Groww API & NSE real price feeds
    */
@@ -207,6 +217,7 @@ export class GrowwClient {
     for (const endpoint of endpoints) {
       try {
         const res = await fetch(endpoint, {
+          signal: AbortSignal.timeout(5000),
           headers: {
             Authorization: `Bearer ${this.token}`,
             "X-App-Secret": this.secret,
@@ -221,7 +232,7 @@ export class GrowwClient {
           }
         }
       } catch {
-        // continue
+        // continue to next endpoint
       }
     }
 
@@ -252,6 +263,7 @@ export class GrowwClient {
     for (const endpoint of endpoints) {
       try {
         const res = await fetch(endpoint, {
+          signal: AbortSignal.timeout(5000),
           headers: {
             Authorization: `Bearer ${this.token}`,
             "X-App-Secret": this.secret,
@@ -266,7 +278,7 @@ export class GrowwClient {
           }
         }
       } catch {
-        // continue
+        // continue to next endpoint
       }
     }
 

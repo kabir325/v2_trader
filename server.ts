@@ -36,6 +36,15 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Initialize Groww Client with active config credentials
+  if (config.credentials) {
+    growwClient.updateCredentials(
+      config.credentials.groww_api_token || "",
+      config.credentials.groww_api_secret || "",
+      config.credentials.groww_totp_key || ""
+    );
+  }
+
   app.use(express.json());
 
   // ==================== API ROUTES ====================
@@ -374,6 +383,12 @@ async function startServer() {
       config.credentials.groww_totp_key = req.body.groww_totp_key;
     }
 
+    growwClient.updateCredentials(
+      config.credentials.groww_api_token || "",
+      config.credentials.groww_api_secret || "",
+      config.credentials.groww_totp_key || ""
+    );
+
     systemEvents.unshift({
       id: `evt-${Date.now()}`,
       timestamp: new Date().toISOString(),
@@ -518,13 +533,94 @@ WantedBy=multi-user.target
     res.json(investmentStore.getPortfolioData());
   });
 
-  // Sync holdings & SIPs directly from Groww API
-  app.post("/api/investments/sync-groww", async (_req, res) => {
-    const syncResult = await investmentStore.syncWithGroww();
+  // Check Groww connection status
+  app.get("/api/investments/groww-status", (_req, res) => {
+    res.setHeader("Content-Type", "application/json");
     res.json({
-      ...syncResult,
-      portfolio: investmentStore.getPortfolioData()
+      success: true,
+      credentials: growwClient.getCredentialsStatus()
     });
+  });
+
+  // Update Groww credentials directly
+  app.post("/api/investments/groww-credentials", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    const { token, secret, totpKey } = req.body || {};
+    if (token !== undefined) config.credentials.groww_api_token = token;
+    if (secret !== undefined) config.credentials.groww_api_secret = secret;
+    if (totpKey !== undefined) config.credentials.groww_totp_key = totpKey;
+
+    growwClient.updateCredentials(
+      config.credentials.groww_api_token || "",
+      config.credentials.groww_api_secret || "",
+      config.credentials.groww_totp_key || ""
+    );
+
+    res.json({
+      success: true,
+      message: "Groww credentials saved successfully.",
+      credentials: growwClient.getCredentialsStatus()
+    });
+  });
+
+  // Sync holdings & SIPs directly from Groww API
+  app.post("/api/investments/sync-groww", async (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { token, secret, totpKey } = req.body || {};
+      if (token) {
+        config.credentials.groww_api_token = token;
+        if (secret !== undefined) config.credentials.groww_api_secret = secret;
+        if (totpKey !== undefined) config.credentials.groww_totp_key = totpKey;
+        growwClient.updateCredentials(
+          token,
+          secret !== undefined ? secret : config.credentials.groww_api_secret || "",
+          totpKey !== undefined ? totpKey : config.credentials.groww_totp_key || ""
+        );
+      }
+
+      const syncResult = await investmentStore.syncWithGroww();
+      res.json({
+        ...syncResult,
+        portfolio: investmentStore.getPortfolioData()
+      });
+    } catch (err: any) {
+      console.error("Groww sync error:", err);
+      res.json({
+        success: false,
+        message: err.message || "Failed to sync with Groww API.",
+        stockCount: 0,
+        sipCount: 0,
+        portfolio: investmentStore.getPortfolioData()
+      });
+    }
+  });
+
+  // Import Groww Holdings CSV file
+  app.post("/api/investments/import-groww-csv", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const { csvText } = req.body || {};
+      if (!csvText || typeof csvText !== "string") {
+        return res.json({
+          success: false,
+          message: "CSV content is required.",
+          portfolio: investmentStore.getPortfolioData()
+        });
+      }
+      const importResult = investmentStore.importGrowwCsv(csvText);
+      res.json({
+        ...importResult,
+        portfolio: investmentStore.getPortfolioData()
+      });
+    } catch (err: any) {
+      console.error("Groww CSV import error:", err);
+      res.json({
+        success: false,
+        message: err.message || "Failed to parse CSV file.",
+        portfolio: investmentStore.getPortfolioData()
+      });
+    }
   });
 
   // Reset portfolio to zero (clear all holdings and accounting history)
